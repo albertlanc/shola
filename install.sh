@@ -1,33 +1,12 @@
 #!/bin/bash
-# Techfeeds VPN Pro - Ubuntu 24.04 Master Installer
 set -e
-
-if [[ $EUID -ne 0 ]]; then
-   echo "This script must be run as root." 
-   exit 1
-fi
-
-echo "================================================================"
-echo " Starting Techfeeds VPN Pro Installation..."
-echo "================================================================"
-
-echo "[1/4] Installing Core Dependencies..."
-apt-get update -y -q
-apt-get install -y -q curl jq ufw lsof uuid-runtime cron dropbear net-tools fail2ban tar wget
-
-echo "[2/4] Installing Xray Core..."
-bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
-
-echo "[3/4] Preparing Directory Architecture..."
 mkdir -p /opt/techfeeds-vpn-pro/{core,modules,config,systemd,templates,logs,backups,users}
 cp -r . /opt/techfeeds-vpn-pro/
-
-echo "[4/4] Linking Binaries & Setting Permissions..."
 chmod +x /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh
 ln -sf /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh /usr/local/bin/techfeeds-vpn-pro
 
-# Generate Base Xray Config if missing
-if [ ! -f "/usr/local/etc/xray/config.json" ]; then
+# Comprehensive Xray JSON addressing 443(TLS), 80(Non-TLS), 8080(XHTTP)
+mkdir -p /usr/local/etc/xray
 cat << 'JSON' > /usr/local/etc/xray/config.json
 {
   "log": { "loglevel": "warning" },
@@ -38,23 +17,25 @@ cat << 'JSON' > /usr/local/etc/xray/config.json
       "settings": {
         "clients": [],
         "decryption": "none",
-        "fallbacks": [
-          { "path": "/vmess", "dest": "@vmess" },
-          { "path": "/trojan", "dest": "@trojan" },
-          { "path": "/ssh", "dest": "127.0.0.1:22" }
-        ]
+        "fallbacks": [ { "dest": 80 }, { "path": "/ssh", "dest": "127.0.0.1:22" } ]
       },
-      "streamSettings": { "network": "tcp", "security": "tls", "tlsSettings": { "certificates": [] } }
+      "streamSettings": { "network": "tcp", "security": "tls", "tlsSettings": { "certificates": [ { "certificateFile": "/etc/ssl/techfeeds/fullchain.cer", "keyFile": "/etc/ssl/techfeeds/private.key" } ] } }
+    },
+    {
+      "port": 8080,
+      "protocol": "vless",
+      "settings": { "clients": [], "decryption": "none" },
+      "streamSettings": { "network": "xhttp", "security": "none" }
+    },
+    {
+      "port": 80,
+      "protocol": "vmess",
+      "settings": { "clients": [] },
+      "streamSettings": { "network": "ws", "security": "none", "wsSettings": { "path": "/vmess" } }
     }
   ],
   "outbounds": [ { "protocol": "freedom" } ]
 }
 JSON
-fi
-systemctl restart xray || true
 
-echo "================================================================"
-echo " Installation Complete!"
-echo " Type 'techfeeds-vpn-pro' to open the panel."
-echo " Type 'techfeeds-vpn-pro diagnose' to check system health."
-echo "================================================================"
+echo "Architecture updated!"
