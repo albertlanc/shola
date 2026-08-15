@@ -21,12 +21,13 @@ echo -e "\033[0;36m┌─ TECHFEEDS VPN PRO - INSTALLING ───────�
 
 echo -e "│  Installing system dependencies and cloning repository..."
 apt-get update -y > /dev/null 2>&1
-apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 > /dev/null 2>&1
+# Added 'at' for trial account scheduling
+apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 at > /dev/null 2>&1
 
 rm -rf /opt/techfeeds-vpn-pro
 git clone https://github.com/albertlanc/smartking.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
 
-# AUTO-SANITATION: Automatically purge any stray AI formatting tags or citations on fresh clone
+# AUTO-SANITATION: Automatically purge any stray formatting tags on fresh clone
 find /opt/techfeeds-vpn-pro -type f -name "*.sh" -exec sed -i -E 's/\[span_[a-zA-Z0-9_]+\]\((start_span|end_span)\)//g; s/\+\]//g; s/\+\]//g' {} + 2>/dev/null
 
 mkdir -p /opt/techfeeds-vpn-pro/{backups,users}
@@ -267,8 +268,10 @@ ufw allow 443/tcp > /dev/null 2>&1
 ufw allow 8080/tcp > /dev/null 2>&1
 
 echo -e "│  Setting up global commands..."
+# Ensure execution permissions for all modules before linking
+chmod +x /opt/techfeeds-vpn-pro/*.sh /opt/techfeeds-vpn-pro/core/*.sh /opt/techfeeds-vpn-pro/modules/*.sh 2>/dev/null
+
 if [ -f /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh ]; then
-    chmod +x /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh
     ln -sf /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh /usr/local/bin/menu
     ln -sf /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh /usr/local/bin/techfeeds-vpn-pro
 fi
