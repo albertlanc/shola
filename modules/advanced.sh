@@ -1,56 +1,75 @@
 advanced_menu() {
     while true; do
         clear
-        echo "================================================================"
-        echo -e " \033[1;37mAdvanced Settings\033[0m"
-        echo "================================================================"
-        echo "1. Backup Techfeeds VPN Pro Configurations"
-        echo "2. Restore Configuration Backup"
-        echo "3. Update Package Repositories"
-        echo "4. Uninstall Techfeeds VPN Pro"
-        echo "0. Back to Main Menu"
-        echo -ne "\nSelect option [0-4]: "
+        echo -e "\033[0;36m┌─ ADVANCED SETTINGS ──────────────────────────────────────\033[0m"
+        echo -e "\033[0;36m│                                                          \033[0m"
+        echo -e "\033[0;36m│  \033[0;32m[1]\033[0;36m Backup Techfeeds VPN Pro Configurations               \033[0m"
+        echo -e "\033[0;36m│                                                          \033[0m"
+        echo -e "\033[0;36m│  \033[0;32m[2]\033[0;36m Restore Configuration Backup                          \033[0m"
+        echo -e "\033[0;36m│                                                          \033[0m"
+        echo -e "\033[0;36m│  \033[0;32m[3]\033[0;36m Update Package Repositories                         \033[0m"
+        echo -e "\033[0;36m│                                                          \033[0m"
+        echo -e "\033[0;36m│  \033[0;32m[4]\033[0;36m Uninstall Techfeeds VPN Pro                         \033[0m"
+        echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
+        echo -e "\033[0;31m┌──────────────────────────────────────────────────────────\033[0m"
+        echo -e "\033[0;31m│  [0] Back to Main Menu                                   \033[0m"
+        echo -e "\033[0;31m└──────────────────────────────────────────────────────────\033[0m"
+        echo -ne "\n\033[0;32mSelect option [0-4]: \033[0m"
         read -r adv_opt
 
         case $adv_opt in
             1)
+                clear
+                echo -e "\033[0;36m┌─ SYSTEM BACKUP ──────────────────────────────────────────\033[0m"
                 DATE=$(date +"%Y%m%d_%H%M%S")
+                mkdir -p /opt/techfeeds-vpn-pro/backups
                 BACKUP_FILE="/opt/techfeeds-vpn-pro/backups/vpn_backup_$DATE.tar.gz"
-                echo "Creating backup..."
+                echo "│  Creating backup..."
                 tar -czf "$BACKUP_FILE" /usr/local/etc/xray /etc/ssh /opt/techfeeds-vpn-pro/users 2>/dev/null
-                echo -e "\033[0;32m● Backup saved to: $BACKUP_FILE\033[0m"
-                read -p "Press Enter..."
+                echo -e "│  \033[0;32mBackup saved to: $BACKUP_FILE\033[0m"
+                echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
+                read -p "Press Enter to return..."
                 ;;
             2)
-                echo "Available backups in /opt/techfeeds-vpn-pro/backups/:"
-                ls -lh /opt/techfeeds-vpn-pro/backups/
+                clear
+                echo -e "\033[0;36m┌─ RESTORE BACKUP ─────────────────────────────────────────\033[0m"
+                echo "│  Available backups in /opt/techfeeds-vpn-pro/backups/:"
+                echo -e "└──────────────────────────────────────────────────────────\033[0m"
+                ls -lh /opt/techfeeds-vpn-pro/backups/ 2>/dev/null
+                echo -ne "\n"
                 read -p "Enter full backup filename to restore: " b_file
                 if [ -f "/opt/techfeeds-vpn-pro/backups/$b_file" ]; then
                     tar -xzf "/opt/techfeeds-vpn-pro/backups/$b_file" -C /
-                    echo "Restore complete! Restarting services..."
+                    echo -e "\033[0;32mRestore complete! Restarting services...\033[0m"
                     systemctl restart ssh xray
                 else
-                    echo "Backup not found."
+                    echo -e "\033[0;31mBackup not found.\033[0m"
                 fi
-                read -p "Press Enter..."
+                read -p "Press Enter to return..."
                 ;;
             3)
-                apt-get update -y
-                read -p "Press Enter..."
+                clear
+                echo -e "\033[0;36m┌─ UPDATE REPOSITORIES ────────────────────────────────────\033[0m"
+                apt-get update -y && apt-get upgrade -y
+                echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
+                read -p "Press Enter to return..."
                 ;;
             4)
-                read -p "DANGER: Type 'YES' to completely uninstall Techfeeds VPN Pro: " confirm
+                clear
+                echo -e "\033[0;31m┌─ DANGER: UNINSTALL ──────────────────────────────────────\033[0m"
+                read -p "│  Type 'YES' to completely uninstall Techfeeds VPN Pro: " confirm
+                echo -e "\033[0;31m└──────────────────────────────────────────────────────────\033[0m"
                 if [ "$confirm" == "YES" ]; then
                     echo "Stopping services and removing directories..."
                     systemctl stop xray dnstt-server 2>/dev/null
                     rm -rf /opt/techfeeds-vpn-pro
                     rm -f /usr/local/bin/techfeeds-vpn-pro
-                    echo "Uninstallation complete. Exiting..."
+                    echo -e "\033[0;32mUninstallation complete. Exiting...\033[0m"
                     exit 0
                 fi
                 ;;
             0) return ;;
-            *) echo "Invalid option."; sleep 1 ;;
+            *) echo -e "\033[1;31mInvalid option.\033[0m"; sleep 1 ;;
         esac
     done
 }
