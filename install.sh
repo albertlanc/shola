@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Forces all read commands to take input strictly from your keyboard
+exec < /dev/tty
+
 if [ "$EUID" -ne 0 ]; then
     echo -e "\033[1;31mError: You must run this installer as root.\033[0m"
     exit 1
@@ -11,11 +14,10 @@ echo -e "│  Welcome to the automated server installer."
 echo -e "│  Please provide your domain and nameserver below."
 echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
 
-# FIX 1: Forcing input to come from the keyboard (/dev/tty) instead of the script pipe
 echo -ne "\033[1;32mEnter your Pointed Domain (e.g., vpn.yourdomain.com): \033[0m"
-read -r DOMAIN < /dev/tty
+read -r DOMAIN
 echo -ne "\033[1;32mEnter your SlowDNS Nameserver (e.g., ns.yourdomain.com): \033[0m"
-read -r NS < /dev/tty
+read -r NS
 
 clear
 echo -e "\033[0;36m┌─ TECHFEEDS VPN PRO - INSTALLING ─────────────────────────\033[0m"
@@ -47,7 +49,6 @@ git clone https://www.bamsoftware.com/git/dnstt.git /opt/dnstt > /dev/null 2>&1
 cd /opt/dnstt/dnstt-server && go build
 mv dnstt-server /usr/local/bin/
 
-# FIX 2: Using the updated DNSTT syntax for key generation
 cd /etc/techfeeds
 /usr/local/bin/dnstt-server -gen-key -privkey-file /etc/techfeeds/privkey -pubkey-file /etc/techfeeds/pubkey
 cat /etc/techfeeds/pubkey > /etc/techfeeds/pubkey.txt
