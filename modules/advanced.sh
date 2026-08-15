@@ -10,11 +10,13 @@ advanced_menu() {
         echo -e "\033[0;36m│  \033[0;32m[3]\033[0;36m Update Package Repositories                         \033[0m"
         echo -e "\033[0;36m│                                                          \033[0m"
         echo -e "\033[0;36m│  \033[0;32m[4]\033[0;36m Uninstall Techfeeds VPN Pro                         \033[0m"
+        echo -e "\033[0;36m│                                                          \033[0m"
+        echo -e "\033[0;36m│  \033[0;32m[5]\033[0;36m Change Protocol Ports (Port-Change)                 \033[0m"
         echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
         echo -e "\033[0;31m┌──────────────────────────────────────────────────────────\033[0m"
         echo -e "\033[0;31m│  [0] Back to Main Menu                                   \033[0m"
         echo -e "\033[0;31m└──────────────────────────────────────────────────────────\033[0m"
-        echo -ne "\n\033[0;32mSelect option [0-4]: \033[0m"
+        echo -ne "\n\033[0;32mSelect option [0-5]: \033[0m"
         read -r adv_opt
 
         case $adv_opt in
@@ -68,6 +70,7 @@ advanced_menu() {
                     exit 0
                 fi
                 ;;
+            5) port_change_menu ;;
             0) return ;;
             *) echo -e "\033[1;31mInvalid option.\033[0m"; sleep 1 ;;
         esac
