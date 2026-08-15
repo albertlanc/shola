@@ -11,11 +11,11 @@ echo -e "│  Welcome to the automated server installer."
 echo -e "│  Please provide your domain and nameserver below."
 echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
 
-# Separated prompts to prevent line-break swallowing
+# FIX 1: Forcing input to come from the keyboard (/dev/tty) instead of the script pipe
 echo -ne "\033[1;32mEnter your Pointed Domain (e.g., vpn.yourdomain.com): \033[0m"
-read DOMAIN
+read -r DOMAIN < /dev/tty
 echo -ne "\033[1;32mEnter your SlowDNS Nameserver (e.g., ns.yourdomain.com): \033[0m"
-read NS
+read -r NS < /dev/tty
 
 clear
 echo -e "\033[0;36m┌─ TECHFEEDS VPN PRO - INSTALLING ─────────────────────────\033[0m"
@@ -44,13 +44,12 @@ systemctl enable --now systemd-resolved 2>/dev/null
 
 rm -rf /opt/dnstt
 git clone https://www.bamsoftware.com/git/dnstt.git /opt/dnstt > /dev/null 2>&1
-
-# Removed silencing output here to prevent silent RAM crashes
 cd /opt/dnstt/dnstt-server && go build
 mv dnstt-server /usr/local/bin/
 
+# FIX 2: Using the updated DNSTT syntax for key generation
 cd /etc/techfeeds
-/usr/local/bin/dnstt-server -gen pubkey privkey
+/usr/local/bin/dnstt-server -gen-key -privkey-file /etc/techfeeds/privkey -pubkey-file /etc/techfeeds/pubkey
 cat /etc/techfeeds/pubkey > /etc/techfeeds/pubkey.txt
 
 echo -e "│  Generating Let's Encrypt SSL for $DOMAIN..."
@@ -58,7 +57,6 @@ systemctl stop xray 2>/dev/null
 systemctl stop nginx 2>/dev/null
 curl -s https://get.acme.sh | sh > /dev/null 2>&1
 
-# Removed silencing output here to ensure SSL errors are visible
 ~/.acme.sh/acme.sh --issue -d "$DOMAIN" --standalone --keylength ec-256
 ~/.acme.sh/acme.sh --install-cert -d "$DOMAIN" --ecc \
     --fullchain-file /etc/ssl/techfeeds/fullchain.cer \
