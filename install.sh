@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Forces all read commands to take input strictly from your keyboard
-exec < /dev/tty
-
 if [ "$EUID" -ne 0 ]; then
     echo -e "\033[1;31mError: You must run this installer as root.\033[0m"
     exit 1
@@ -15,9 +12,9 @@ echo -e "│  Please provide your domain and nameserver below."
 echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
 
 echo -ne "\033[1;32mEnter your Pointed Domain (e.g., vpn.yourdomain.com): \033[0m"
-read -r DOMAIN
+read DOMAIN
 echo -ne "\033[1;32mEnter your SlowDNS Nameserver (e.g., ns.yourdomain.com): \033[0m"
-read -r NS
+read NS
 
 clear
 echo -e "\033[0;36m┌─ TECHFEEDS VPN PRO - INSTALLING ─────────────────────────\033[0m"
