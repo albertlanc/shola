@@ -72,6 +72,7 @@ xray_user_manager() {
                     echo -e "\033[0;36m│  Domain       : \033[1;36m$DOMAIN\033[0m"
                     echo -e "\033[0;36m│  Duration     : \033[1;33m$EXP_TEXT\033[0m"
                     echo -e "\033[0;36m│  Path         : \033[1;37m$PATH_VAR\033[0m"
+                    echo -e "\033[0;36m│  Port         : \033[1;32m$PORT\033[0m"
                     echo -e "\033[0;36m│  Expiry Date  : \033[1;31m$EXP_DATE\033[0m"
                     echo -e "\033[0;36m├─ CONFIGURATION LINK (Copy below) ────────────────────────\033[0m"
                     echo -e "\033[0;36m│  \033[36m$LINK\033[0m"
