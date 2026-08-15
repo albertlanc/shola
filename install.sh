@@ -25,7 +25,8 @@ apt-get update -y > /dev/null 2>&1
 apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 at > /dev/null 2>&1
 
 rm -rf /opt/techfeeds-vpn-pro
-git clone https://github.com/albertlanc/smartking.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
+# FIXED: Pointing correctly to the 'shola' repository
+git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
 
 # AUTO-SANITATION: Automatically purge any stray formatting tags on fresh clone
 find /opt/techfeeds-vpn-pro -type f -name "*.sh" -exec sed -i -E 's/\[span_[a-zA-Z0-9_]+\]\((start_span|end_span)\)//g; s/\+\]//g; s/\+\]//g' {} + 2>/dev/null
