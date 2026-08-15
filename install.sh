@@ -21,11 +21,9 @@ echo -e "\033[0;36m┌─ TECHFEEDS VPN PRO - INSTALLING ───────�
 
 echo -e "│  Installing system dependencies and cloning repository..."
 apt-get update -y > /dev/null 2>&1
-# Added 'at' for trial account scheduling
 apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 at > /dev/null 2>&1
 
 rm -rf /opt/techfeeds-vpn-pro
-# FIXED: Pointing correctly to the 'shola' repository
 git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
 
 # AUTO-SANITATION: Automatically purge any stray formatting tags on fresh clone
@@ -38,13 +36,16 @@ mkdir -p /etc/ssl/techfeeds
 echo "$DOMAIN" > /etc/techfeeds/domain
 echo "$NS" > /etc/techfeeds/ns
 
-# FIX: Set the system hostname to the domain so "localhost" disappears
 hostnamectl set-hostname "$DOMAIN" 2>/dev/null
+
+# SPEED: Enable Google TCP BBR congestion control permanently
+echo -e "net.core.default_qdisc=fq\nnet.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf 2>/dev/null
+sysctl -p > /dev/null 2>&1
 
 echo -e "│  Installing Xray Core..."
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install > /dev/null 2>&1
 
-echo -e "│  Configuring Multi-Protocol Xray (TLS: 8443 & Non-TLS: 8080)..."
+echo -e "│  Configuring Multi-Protocol Xray (TLS, Non-TLS, & WebSockets)..."
 cat << 'EOF' > /usr/local/etc/xray/config.json
 {
   "log": {
@@ -73,7 +74,7 @@ cat << 'EOF' > /usr/local/etc/xray/config.json
       }
     },
     {
-      "tag": "vless-ntls",
+      "tag": "vless-ws",
       "port": 8080,
       "protocol": "vless",
       "settings": {
@@ -81,59 +82,37 @@ cat << 'EOF' > /usr/local/etc/xray/config.json
         "decryption": "none"
       },
       "streamSettings": {
-        "network": "tcp",
-        "security": "none"
-      }
-    },
-    {
-      "tag": "vmess-tls",
-      "port": 8443,
-      "protocol": "vmess",
-      "settings": {
-        "clients": []
-      },
-      "streamSettings": {
-        "network": "tcp",
-        "security": "tls",
-        "tlsSettings": {
-          "certificates": [
-            {
-              "certificateFile": "/etc/ssl/techfeeds/fullchain.cer",
-              "keyFile": "/etc/ssl/techfeeds/private.key"
-            }
-          ]
+        "network": "ws",
+        "wsSettings": {
+          "path": "/vless-ws"
         }
       }
     },
     {
-      "tag": "vmess-ntls",
+      "tag": "vmess-ws",
       "port": 8080,
       "protocol": "vmess",
       "settings": {
         "clients": []
       },
       "streamSettings": {
-        "network": "tcp",
-        "security": "none"
+        "network": "ws",
+        "wsSettings": {
+          "path": "/vmess-ws"
+        }
       }
     },
     {
-      "tag": "trojan-tls",
-      "port": 8443,
+      "tag": "trojan-ws",
+      "port": 8080,
       "protocol": "trojan",
       "settings": {
         "clients": []
       },
       "streamSettings": {
-        "network": "tcp",
-        "security": "tls",
-        "tlsSettings": {
-          "certificates": [
-            {
-              "certificateFile": "/etc/ssl/techfeeds/fullchain.cer",
-              "keyFile": "/etc/ssl/techfeeds/private.key"
-            }
-          ]
+        "network": "ws",
+        "wsSettings": {
+          "path": "/trojan-ws"
         }
       }
     }
@@ -163,7 +142,6 @@ cd /etc/techfeeds
 /usr/local/bin/dnstt-server -gen-key -privkey-file /etc/techfeeds/privkey -pubkey-file /etc/techfeeds/pubkey
 cat /etc/techfeeds/pubkey > /etc/techfeeds/pubkey.txt
 
-# Create SlowDNS Systemd Service
 cat <<EOF > /etc/systemd/system/dnstt-server.service
 [Unit]
 Description=DNSTT Server
@@ -194,21 +172,37 @@ curl -s https://get.acme.sh | sh > /dev/null 2>&1
 
 chmod 644 /etc/ssl/techfeeds/* 2>/dev/null
 
-echo -e "│  Setting up SSH WebSocket Proxy (Port 80)..."
+echo -e "│  Setting up Smart WebSocket Proxy (Port 80 routing to SSH & Xray)..."
 cat << 'EOF' > /usr/local/bin/ws-proxy.py
 import socket, threading, select
+
 def proxy(client):
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        server.connect(('127.0.0.1', 22))
+        initial_data = client.recv(4096)
+        if not initial_data:
+            client.close()
+            return
+            
+        target_port = 22 # Default to SSH
+        
+        # Check if the request is targeting Xray WebSockets
+        if b"/vless-ws" in initial_data or b"/vmess-ws" in initial_data or b"/trojan-ws" in initial_data:
+            target_port = 8080 # Route to Xray non-TLS inbound
+
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.connect(('127.0.0.1', target_port))
+        
+        # If it's SSH websocket, respond with switching protocols handshake
+        if target_port == 22 and b"HTTP/1.1" in initial_data:
+            client.send(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n")
+        else:
+            server.send(initial_data)
+
         while True:
             r, _, _ = select.select([client, server], [], [])
             if client in r:
                 data = client.recv(4096)
                 if not data: break
-                if b"HTTP/1.1" in data:
-                    client.send(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n")
-                    continue
                 server.send(data)
             if server in r:
                 data = server.recv(4096)
@@ -218,12 +212,11 @@ def proxy(client):
         pass
     finally:
         client.close()
-        server.close()
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind(('0.0.0.0', 80))
-s.listen(100)
+s.listen(200)
 while True:
     c, _ = s.accept()
     threading.Thread(target=proxy, args=(c,)).start()
@@ -231,7 +224,7 @@ EOF
 
 cat <<EOF > /etc/systemd/system/ws-proxy.service
 [Unit]
-Description=WebSocket Proxy for SSH
+Description=Smart WebSocket Proxy for SSH and Xray
 After=network.target
 
 [Service]
@@ -270,9 +263,9 @@ ufw allow 53/udp > /dev/null 2>&1
 ufw allow 80/tcp > /dev/null 2>&1
 ufw allow 443/tcp > /dev/null 2>&1
 ufw allow 8080/tcp > /dev/null 2>&1
+ufw allow 8443/tcp > /dev/null 2>&1
 
 echo -e "│  Setting up global commands..."
-# Ensure execution permissions for all modules before linking
 chmod +x /opt/techfeeds-vpn-pro/*.sh /opt/techfeeds-vpn-pro/core/*.sh /opt/techfeeds-vpn-pro/modules/*.sh 2>/dev/null
 
 if [ -f /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh ]; then
