@@ -24,7 +24,7 @@ apt-get update -y > /dev/null 2>&1
 apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 > /dev/null 2>&1
 
 rm -rf /opt/techfeeds-vpn-pro
-git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
+git clone https://github.com/albertlanc/smartking.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
 
 # AUTO-SANITATION: Automatically purge any stray AI formatting tags or citations on fresh clone
 find /opt/techfeeds-vpn-pro -type f -name "*.sh" -exec sed -i -E 's/\[span_[a-zA-Z0-9_]+\]\((start_span|end_span)\)//g; s/\+\]//g; s/\+\]//g' {} + 2>/dev/null
@@ -39,7 +39,110 @@ echo "$NS" > /etc/techfeeds/ns
 echo -e "│  Installing Xray Core..."
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install > /dev/null 2>&1
 
-echo -e "│  Fixing Port 53 & Installing SlowDNS..."
+echo -e "│  Configuring Multi-Protocol Xray (TLS: 8443 & Non-TLS: 8080)..."
+cat << 'EOF' > /usr/local/etc/xray/config.json
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "tag": "vless-tls",
+      "port": 8443,
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificateFile": "/etc/ssl/techfeeds/fullchain.cer",
+              "keyFile": "/etc/ssl/techfeeds/private.key"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "tag": "vless-ntls",
+      "port": 8080,
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "none"
+      }
+    },
+    {
+      "tag": "vmess-tls",
+      "port": 8443,
+      "protocol": "vmess",
+      "settings": {
+        "clients": []
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificateFile": "/etc/ssl/techfeeds/fullchain.cer",
+              "keyFile": "/etc/ssl/techfeeds/private.key"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "tag": "vmess-ntls",
+      "port": 8080,
+      "protocol": "vmess",
+      "settings": {
+        "clients": []
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "none"
+      }
+    },
+    {
+      "tag": "trojan-tls",
+      "port": 8443,
+      "protocol": "trojan",
+      "settings": {
+        "clients": []
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificateFile": "/etc/ssl/techfeeds/fullchain.cer",
+              "keyFile": "/etc/ssl/techfeeds/private.key"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "settings": {}
+    }
+  ]
+}
+EOF
+
+echo -e "│  Fixing Port 53 & Installing DNSTT Server..."
 systemctl stop systemd-resolved 2>/dev/null
 sed -i 's/#DNSStubListener=yes/DNSStubListener=no/' /etc/systemd/resolved.conf 2>/dev/null
 sed -i 's/DNSStubListener=yes/DNSStubListener=no/' /etc/systemd/resolved.conf 2>/dev/null
@@ -161,6 +264,7 @@ ufw allow 22/tcp > /dev/null 2>&1
 ufw allow 53/udp > /dev/null 2>&1
 ufw allow 80/tcp > /dev/null 2>&1
 ufw allow 443/tcp > /dev/null 2>&1
+ufw allow 8080/tcp > /dev/null 2>&1
 
 echo -e "│  Setting up global commands..."
 if [ -f /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh ]; then
@@ -169,7 +273,8 @@ if [ -f /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh ]; then
     ln -sf /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh /usr/local/bin/techfeeds-vpn-pro
 fi
 
-systemctl start xray 2>/dev/null
+systemctl restart xray > /dev/null 2>&1
+systemctl enable xray > /dev/null 2>&1
 
 echo -e "│  \033[0;32mInstallation completed successfully!\033[0m"
 echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
