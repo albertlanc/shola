@@ -37,6 +37,9 @@ mkdir -p /etc/ssl/techfeeds
 echo "$DOMAIN" > /etc/techfeeds/domain
 echo "$NS" > /etc/techfeeds/ns
 
+# FIX: Set the system hostname to the domain so "localhost" disappears
+hostnamectl set-hostname "$DOMAIN" 2>/dev/null
+
 echo -e "│  Installing Xray Core..."
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install > /dev/null 2>&1
 
