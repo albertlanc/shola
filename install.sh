@@ -55,7 +55,9 @@ systemctl stop xray 2>/dev/null
 systemctl stop nginx 2>/dev/null
 curl -s https://get.acme.sh | sh > /dev/null 2>&1
 
-~/.acme.sh/acme.sh --issue -d "$DOMAIN" --standalone --keylength ec-256
+# FIX: Automatically register a dummy email and force Let's Encrypt
+~/.acme.sh/acme.sh --register-account -m admin@$DOMAIN --server letsencrypt > /dev/null 2>&1
+~/.acme.sh/acme.sh --issue -d "$DOMAIN" --standalone --server letsencrypt --keylength ec-256
 ~/.acme.sh/acme.sh --install-cert -d "$DOMAIN" --ecc \
     --fullchain-file /etc/ssl/techfeeds/fullchain.cer \
     --key-file /etc/ssl/techfeeds/private.key
