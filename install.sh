@@ -21,10 +21,14 @@ echo -e "\033[0;36m┌─ TECHFEEDS VPN PRO - INSTALLING ───────�
 
 echo -e "│  Installing system dependencies and cloning repository..."
 apt-get update -y > /dev/null 2>&1
-apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 dropbear > /dev/null 2>&1
+apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 > /dev/null 2>&1
 
 rm -rf /opt/techfeeds-vpn-pro
 git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
+
+# AUTO-SANITATION: Automatically purge any stray AI formatting tags or citations on fresh clone
+find /opt/techfeeds-vpn-pro -type f -name "*.sh" -exec sed -i -E 's/\[span_[a-zA-Z0-9_]+\]\((start_span|end_span)\)//g; s/\+\]//g; s/\+\]//g' {} + 2>/dev/null
+
 mkdir -p /opt/techfeeds-vpn-pro/{backups,users}
 mkdir -p /etc/techfeeds
 mkdir -p /etc/ssl/techfeeds
@@ -51,7 +55,7 @@ cd /etc/techfeeds
 /usr/local/bin/dnstt-server -gen-key -privkey-file /etc/techfeeds/privkey -pubkey-file /etc/techfeeds/pubkey
 cat /etc/techfeeds/pubkey > /etc/techfeeds/pubkey.txt
 
-# FIXED: Create the missing systemd service for DNSTT to run in the background
+# Create SlowDNS Systemd Service
 cat <<EOF > /etc/systemd/system/dnstt-server.service
 [Unit]
 Description=DNSTT Server
@@ -81,6 +85,82 @@ curl -s https://get.acme.sh | sh > /dev/null 2>&1
     --key-file /etc/ssl/techfeeds/private.key > /dev/null 2>&1
 
 chmod 644 /etc/ssl/techfeeds/* 2>/dev/null
+
+echo -e "│  Setting up SSH WebSocket Proxy (Port 80)..."
+cat << 'EOF' > /usr/local/bin/ws-proxy.py
+import socket, threading, select
+def proxy(client):
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        server.connect(('127.0.0.1', 22))
+        while True:
+            r, _, _ = select.select([client, server], [], [])
+            if client in r:
+                data = client.recv(4096)
+                if not data: break
+                if b"HTTP/1.1" in data:
+                    client.send(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n")
+                    continue
+                server.send(data)
+            if server in r:
+                data = server.recv(4096)
+                if not data: break
+                client.send(data)
+    except:
+        pass
+    finally:
+        client.close()
+        server.close()
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(('0.0.0.0', 80))
+s.listen(100)
+while True:
+    c, _ = s.accept()
+    threading.Thread(target=proxy, args=(c,)).start()
+EOF
+
+cat <<EOF > /etc/systemd/system/ws-proxy.service
+[Unit]
+Description=WebSocket Proxy for SSH
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/ws-proxy.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now ws-proxy > /dev/null 2>&1
+
+echo -e "│  Configuring Stunnel SSL (Port 443)..."
+cat <<EOF > /etc/stunnel/stunnel.conf
+pid = /var/run/stunnel.pid
+cert = /etc/ssl/techfeeds/fullchain.cer
+key = /etc/ssl/techfeeds/private.key
+client = no
+socket = a:SO_REUSEADDR=1
+socket = l:TCP_NODELAY=1
+socket = r:TCP_NODELAY=1
+
+[ssh-ws-ssl]
+accept = 443
+connect = 127.0.0.1:80
+EOF
+
+sed -i 's/ENABLED=0/ENABLED=1/' /etc/default/stunnel4
+systemctl enable --now stunnel4 > /dev/null 2>&1
+
+echo -e "│  Configuring Firewall Rules..."
+ufw allow 22/tcp > /dev/null 2>&1
+ufw allow 53/udp > /dev/null 2>&1
+ufw allow 80/tcp > /dev/null 2>&1
+ufw allow 443/tcp > /dev/null 2>&1
 
 echo -e "│  Setting up global commands..."
 if [ -f /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh ]; then
