@@ -19,17 +19,19 @@ read NS
 clear
 echo -e "\033[0;36m┌─ TECHFEEDS VPN PRO - INSTALLING ─────────────────────────\033[0m"
 
-echo -e "│  Creating directory structures..."
-mkdir -p /opt/techfeeds-vpn-pro/{modules,core,backups,users}
+echo -e "│  Installing system dependencies and cloning repository..."
+apt-get update -y > /dev/null 2>&1
+apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 dropbear > /dev/null 2>&1
+
+# Clone repository files directly into the installation directory
+rm -rf /opt/techfeeds-vpn-pro
+git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
+mkdir -p /opt/techfeeds-vpn-pro/{backups,users}
 mkdir -p /etc/techfeeds
 mkdir -p /etc/ssl/techfeeds
 
 echo "$DOMAIN" > /etc/techfeeds/domain
 echo "$NS" > /etc/techfeeds/ns
-
-echo -e "│  Updating OS and installing dependencies..."
-apt-get update -y > /dev/null 2>&1
-apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 dropbear > /dev/null 2>&1
 
 echo -e "│  Installing Xray Core..."
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install > /dev/null 2>&1
@@ -55,9 +57,7 @@ systemctl stop xray 2>/dev/null
 systemctl stop nginx 2>/dev/null
 curl -s https://get.acme.sh | sh > /dev/null 2>&1
 
-# PERMANENT FIX: Force acme.sh to make Let's Encrypt the permanent default CA
 ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt > /dev/null 2>&1
-
 ~/.acme.sh/acme.sh --issue -d "$DOMAIN" --standalone --keylength ec-256
 ~/.acme.sh/acme.sh --install-cert -d "$DOMAIN" --ecc \
     --fullchain-file /etc/ssl/techfeeds/fullchain.cer \
