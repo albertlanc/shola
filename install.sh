@@ -23,7 +23,6 @@ echo -e "│  Installing system dependencies and cloning repository..."
 apt-get update -y > /dev/null 2>&1
 apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 dropbear > /dev/null 2>&1
 
-# Clone repository files directly into the installation directory
 rm -rf /opt/techfeeds-vpn-pro
 git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
 mkdir -p /opt/techfeeds-vpn-pro/{backups,users}
@@ -52,16 +51,34 @@ cd /etc/techfeeds
 /usr/local/bin/dnstt-server -gen-key -privkey-file /etc/techfeeds/privkey -pubkey-file /etc/techfeeds/pubkey
 cat /etc/techfeeds/pubkey > /etc/techfeeds/pubkey.txt
 
+# FIXED: Create the missing systemd service for DNSTT to run in the background
+cat <<EOF > /etc/systemd/system/dnstt-server.service
+[Unit]
+Description=DNSTT Server
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/dnstt-server -udp :53 -privkey-file /etc/techfeeds/privkey $NS 127.0.0.1:22
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable dnstt-server > /dev/null 2>&1
+systemctl start dnstt-server
+
 echo -e "│  Generating Let's Encrypt SSL for $DOMAIN..."
 systemctl stop xray 2>/dev/null
 systemctl stop nginx 2>/dev/null
 curl -s https://get.acme.sh | sh > /dev/null 2>&1
 
 ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt > /dev/null 2>&1
-~/.acme.sh/acme.sh --issue -d "$DOMAIN" --standalone --keylength ec-256
+~/.acme.sh/acme.sh --issue -d "$DOMAIN" --standalone --keylength ec-256 > /dev/null 2>&1
 ~/.acme.sh/acme.sh --install-cert -d "$DOMAIN" --ecc \
     --fullchain-file /etc/ssl/techfeeds/fullchain.cer \
-    --key-file /etc/ssl/techfeeds/private.key
+    --key-file /etc/ssl/techfeeds/private.key > /dev/null 2>&1
 
 chmod 644 /etc/ssl/techfeeds/* 2>/dev/null
 
