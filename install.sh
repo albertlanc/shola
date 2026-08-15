@@ -21,7 +21,7 @@ echo -e "\033[0;36m┌─ TECHFEEDS VPN PRO - INSTALLING ───────�
 
 echo -e "│  Installing system dependencies and cloning repository..."
 apt-get update -y > /dev/null 2>&1
-apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 at > /dev/null 2>&1
+apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 cmake make gcc g++ at > /dev/null 2>&1
 
 rm -rf /opt/techfeeds-vpn-pro
 git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
@@ -186,6 +186,35 @@ systemctl daemon-reload
 systemctl enable dnstt-server > /dev/null 2>&1
 systemctl start dnstt-server
 
+echo -e "│  Compiling & Installing BadVPN UDPForwarder (Ports 7100-7300)..."
+cd /opt
+git clone https://github.com/ambrop72/badvpn.git badvpn-src > /dev/null 2>&1
+mkdir -p /opt/badvpn-src/build
+cd /opt/badvpn-src/build
+cmake .. -DBUILD_NOTHING_BY_DEFAULT=1 -DBUILD_UDPGW=1 > /dev/null 2>&1
+make install > /dev/null 2>&1
+cd /root
+
+# Create Systemd services for BadVPN ports 7100 through 7300
+for port in 7100 7101 7200 7300; do
+cat <<EOF > /etc/systemd/system/badvpn-$port.service
+[Unit]
+Description=BadVPN UDPForwarder Port $port
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/badvpn-udpgw --listen-addr 127.0.0.1:$port --max-clients 500 --max-connections 500
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable badvpn-$port > /dev/null 2>&1
+systemctl start badvpn-$port
+done
+
 echo -e "│  Generating Let's Encrypt SSL for $DOMAIN..."
 systemctl stop xray 2>/dev/null
 systemctl stop nginx 2>/dev/null
@@ -274,6 +303,8 @@ ufw allow 22/tcp > /dev/null 2>&1
 ufw allow 53/udp > /dev/null 2>&1
 ufw allow 80/tcp > /dev/null 2>&1
 ufw allow 443/tcp > /dev/null 2>&1
+ufw allow 7100:7300/tcp > /dev/null 2>&1
+ufw allow 7100:7300/udp > /dev/null 2>&1
 ufw allow 8080/tcp > /dev/null 2>&1
 ufw allow 8443/tcp > /dev/null 2>&1
 
