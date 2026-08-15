@@ -32,13 +32,26 @@ xray_user_manager() {
                 local SECURITY="tls"
                 local NET_TYPE="tcp"
                 local PATH_VAR="/"
+                local TRANSPORT_MODE="tcp"
                 
-                # Option 2 or 3 means WebSocket mode routed via port 443 (TLS) or 80 (Non-TLS)
                 if [ "$opt" -eq 2 ] || [ "$opt" -eq 3 ]; then
                     NET_TYPE="ws"
-                    SECURITY="tls"
-                    PORT=443 # Connects via Stunnel/WS-Proxy 443
+                    echo -e "\033[0;36m│                                                          \033[0m"
+                    echo -e "\033[0;36m│  \033[0;32m[1]\033[0m \033[0;36mWebSocket TLS (Port 443)                      \033[0m"
+                    echo -e "\033[0;36m│  \033[0;32m[2]\033[0m \033[0;36mWebSocket Non-TLS (Port 80)                   \033[0m"
+                    echo -ne "\n\033[0;32mSelect WS Mode [1-2]: \033[0m"
+                    read -r ws_mode
                     
+                    if [ "$ws_mode" -eq 2 ]; then
+                        SECURITY="none"
+                        PORT=80
+                        TRANSPORT_MODE="ws-nontls"
+                    else
+                        SECURITY="tls"
+                        PORT=443
+                        TRANSPORT_MODE="ws-tls"
+                    fi
+
                     if [ "$proto" = "vless" ]; then
                         INBOUND_IDX=1
                         PATH_VAR="/vless-ws"
@@ -50,21 +63,21 @@ xray_user_manager() {
                         PATH_VAR="/trojan-ws"
                     fi
                 else
-                    # Option 1: Direct TCP TLS on port 8443
                     INBOUND_IDX=0
                     NET_TYPE="tcp"
                     SECURITY="tls"
                     PORT=8443
                     PATH_VAR="/"
+                    TRANSPORT_MODE="tcp-tls"
                 fi
 
                 if [ "$opt" -eq 3 ]; then
                     local EXP_TEXT="6 Hours (Trial)"
                     local EXP_DATE=$(date -d "+6 hours" +"%Y-%m-%d %H:%M:%S")
                     if [ "$proto" = "trojan" ]; then
-                        echo "jq 'del(.inbounds[$INBOUND_IDX].settings.clients[] | select(.password==\"$credential\"))' $CONF > /tmp/xray_tmp && mv /tmp/xray_tmp $CONF && systemctl restart xray" | at now + 6 hours >/dev/null 2>&1
+                        echo "jq 'del(.inbounds[].settings.clients[] | select(.password==\"$credential\"))' $CONF > /tmp/xray_tmp && mv /tmp/xray_tmp $CONF && systemctl restart xray" | at now + 6 hours >/dev/null 2>&1
                     else
-                        echo "jq 'del(.inbounds[$INBOUND_IDX].settings.clients[] | select(.id==\"$credential\"))' $CONF > /tmp/xray_tmp && mv /tmp/xray_tmp $CONF && systemctl restart xray" | at now + 6 hours >/dev/null 2>&1
+                        echo "jq 'del(.inbounds[].settings.clients[] | select(.id==\"$credential\"))' $CONF > /tmp/xray_tmp && mv /tmp/xray_tmp $CONF && systemctl restart xray" | at now + 6 hours >/dev/null 2>&1
                     fi
                 else
                     read -p "│  Duration (Days): " days
@@ -74,10 +87,19 @@ xray_user_manager() {
                 
                 if [ -f "$CONF" ]; then
                     if [ "$proto" = "trojan" ]; then
+                        # Inject into target inbound
                         jq --arg p "$credential" --arg u "$user" \
                         ".inbounds[$INBOUND_IDX].settings.clients += [{\"password\": \$p, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
                         
-                        if [ "$NET_TYPE" = "ws" ]; then
+                        # If WS, also inject into the general WS inbound index (assumed index 3 or matching WS block) so port 80/443 handlers work
+                        if [ "$NET_TYPE" = "ws" ] && [ "$INBOUND_IDX" -ne 3 ]; then
+                            jq --arg p "$credential" --arg u "$user" \
+                            ".inbounds[3].settings.clients += [{\"password\": \$p, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
+                        fi
+
+                        if [ "$TRANSPORT_MODE" = "ws-nontls" ]; then
+                            local LINK="trojan://${credential}@${DOMAIN}:${PORT}?type=ws&security=none&path=${PATH_VAR}&host=${DOMAIN}#${user}"
+                        elif [ "$TRANSPORT_MODE" = "ws-tls" ]; then
                             local LINK="trojan://${credential}@${DOMAIN}:${PORT}?type=ws&security=tls&path=${PATH_VAR}&sni=${DOMAIN}#${user}"
                         else
                             local LINK="trojan://${credential}@${DOMAIN}:${PORT}?type=tcp&security=tls&sni=${DOMAIN}#${user}"
@@ -86,6 +108,11 @@ xray_user_manager() {
                     elif [ "$proto" = "vmess" ]; then
                         jq --arg id "$credential" --arg u "$user" \
                         ".inbounds[$INBOUND_IDX].settings.clients += [{\"id\": \$id, \"alterId\": 0, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
+
+                        if [ "$NET_TYPE" = "ws" ] && [ "$INBOUND_IDX" -ne 2 ]; then
+                            jq --arg id "$credential" --arg u "$user" \
+                            ".inbounds[2].settings.clients += [{\"id\": \$id, \"alterId\": 0, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
+                        fi
                         
                         local VMESS_JSON="{\"v\":\"2\",\"ps\":\"$user\",\"add\":\"$DOMAIN\",\"port\":\"$PORT\",\"id\":\"$credential\",\"aid\":\"0\",\"net\":\"$NET_TYPE\",\"type\":\"none\",\"host\":\"$DOMAIN\",\"path\":\"$PATH_VAR\",\"tls\":\"${SECURITY}\",\"sni\":\"$DOMAIN\"}"
                         local LINK="vmess://$(echo -n $VMESS_JSON | base64 -w 0)"
@@ -93,8 +120,15 @@ xray_user_manager() {
                     else
                         jq --arg id "$credential" --arg u "$user" \
                         ".inbounds[$INBOUND_IDX].settings.clients += [{\"id\": \$id, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
+
+                        if [ "$NET_TYPE" = "ws" ] && [ "$INBOUND_IDX" -ne 1 ]; then
+                            jq --arg id "$credential" --arg u "$user" \
+                            ".inbounds[1].settings.clients += [{\"id\": \$id, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
+                        fi
                         
-                        if [ "$NET_TYPE" = "ws" ]; then
+                        if [ "$TRANSPORT_MODE" = "ws-nontls" ]; then
+                            local LINK="vless://${credential}@${DOMAIN}:${PORT}?type=ws&security=none&path=${PATH_VAR}&host=${DOMAIN}#${user}"
+                        elif [ "$TRANSPORT_MODE" = "ws-tls" ]; then
                             local LINK="vless://${credential}@${DOMAIN}:${PORT}?type=ws&security=tls&path=${PATH_VAR}&sni=${DOMAIN}#${user}"
                         else
                             local LINK="vless://${credential}@${DOMAIN}:${PORT}?type=tcp&security=tls&sni=${DOMAIN}#${user}"
@@ -109,7 +143,7 @@ xray_user_manager() {
                     echo -e "\033[0;36m│  Domain       : \033[1;36m$DOMAIN\033[0m"
                     echo -e "\033[0;36m│  Duration     : \033[1;33m$EXP_TEXT\033[0m"
                     echo -e "\033[0;36m│  Transport    : \033[1;32m$NET_TYPE ($PATH_VAR)\033[0m"
-                    echo -e "\033[0;36m│  Port         : \033[1;32m$PORT\033[0m"
+                    echo -e "\033[0;36m│  Port & Sec   : \033[1;32mPort $PORT ($SECURITY)\033[0m"
                     echo -e "\033[0;36m│  Expiry Date  : \033[1;31m$EXP_DATE\033[0m"
                     echo -e "\033[0;36m├─ CONFIGURATION LINK (Copy below) ────────────────────────\033[0m"
                     echo -e "\033[0;36m│  \033[36m$LINK\033[0m"
