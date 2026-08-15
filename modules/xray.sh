@@ -129,7 +129,7 @@ xray_user_manager() {
                     systemctl restart xray
                     echo -e "│  \033[0;32m● SUCCESS: $user deleted and Xray restarted.\033[0m"
                 fi
-                echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
+                echo -e "\033[0m└──────────────────────────────────────────────────────────\033[0m"
                 read -p "Press Enter to return..."
                 ;;
             5)
@@ -137,9 +137,6 @@ xray_user_manager() {
                 echo -e "\033[0;36m┌─ ACTIVE ${proto^^} ACCOUNTS ──────────────────────────────\033[0m"
                 if [ -f "$CONF" ]; then
                     jq -r '.inbounds[].settings.clients[]? | select(.email != null) | "│  User: \(.email)"' "$CONF" | sort -u
-                fi
-                echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
-                read -p "./modules/xray_manager.sh"
                 fi
                 echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
                 read -p "Press Enter to return..."
