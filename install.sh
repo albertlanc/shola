@@ -21,7 +21,7 @@ echo -e "\033[0;36m┌─ TECHFEEDS VPN PRO - INSTALLING ───────�
 
 echo -e "│  Installing system dependencies and cloning repository..."
 apt-get update -y > /dev/null 2>&1
-apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 cmake make gcc g++ at > /dev/null 2>&1
+apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 cmake make gcc g++ at iptables > /dev/null 2>&1
 
 rm -rf /opt/techfeeds-vpn-pro
 git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
@@ -30,7 +30,7 @@ git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/
 find /opt/techfeeds-vpn-pro -type f -name "*.sh" -exec sed -i -E 's/\[span_[a-zA-Z0-9_]+\]\((start_span|end_span)\)//g; s/\+\]//g; s/\+\]//g' {} + 2>/dev/null
 
 mkdir -p /opt/techfeeds-vpn-pro/{backups,users}
-mkdir -p /etc/techfeeds
+mkdir -p /etc/techfeeds/quota
 mkdir -p /etc/ssl/techfeeds
 
 echo "$DOMAIN" > /etc/techfeeds/domain
@@ -327,8 +327,11 @@ ufw allow 7100:7300/udp > /dev/null 2>&1
 ufw allow 8080/tcp > /dev/null 2>&1
 ufw allow 8443/tcp > /dev/null 2>&1
 
-echo -e "│  Setting up global commands..."
+echo -e "│  Setting up global commands and automated quota tracker..."
 chmod +x /opt/techfeeds-vpn-pro/*.sh /opt/techfeeds-vpn-pro/core/*.sh /opt/techfeeds-vpn-pro/modules/*.sh 2>/dev/null
+
+# Inject Data Quota Monitor into Crontab silently
+(crontab -l 2>/dev/null | grep -v quota.sh; echo "*/2 * * * * /opt/techfeeds-vpn-pro/core/quota.sh > /dev/null 2>&1") | crontab -
 
 if [ -f /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh ]; then
     ln -sf /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh /usr/local/bin/menu
