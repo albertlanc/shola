@@ -2,28 +2,43 @@ xray_user_manager() {
     local proto=$1
     while true; do
         clear
-        echo -e "\033[0;36m┌─ ${proto^^} MANAGER ──────────────────────────────────────\033[0m"
-        echo -e "\033[0;36m│                                                          \033[0m"
-        echo -e "\033[0;36m│  \033[0;32m[1]\033[0m \033[0;36mCreate ${proto^^} Account (TCP TLS - Port 8443)         \033[0m"
-        echo -e "\033[0;36m│  \033[0;32m[2]\033[0m \033[0;36mCreate ${proto^^} Account (WebSocket - Port 443/80)   \033[0m"
-        echo -e "\033[0;36m│  \033[0;32m[3]\033[0m \033[0;36mCreate Trial ${proto^^} Account (6 Hours - WS)      \033[0m"
-        echo -e "\033[0;36m│                                                          \033[0m"
-        echo -e "\033[0;36m│  \033[0;32m[4]\033[0m \033[0;36mDelete ${proto^^} Account                           \033[0m"
-        echo -e "\033[0;36m│  \033[0;32m[5]\033[0m \033[0;36mList ${proto^^} Accounts                            \033[0m"
-        echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
-        echo -e "\033[0;31m┌──────────────────────────────────────────────────────────\033[0m"
-        echo -e "\033[0;31m│  [0] Back to Main Menu                                   \033[0m"
-        echo -e "\033[0;31m└──────────────────────────────────────────────────────────\033[0m"
-        echo -ne "\n\033[0;32mSelect option [0-5]: \033[0m"
-        read -r opt
-
         local CONF="/usr/local/etc/xray/config.json"
+        local XRAY_USERS=0
+        [ -f "$CONF" ] && XRAY_USERS=$(jq -r '.inbounds[].settings.clients[]? | select(.email != null) | .email' "$CONF" 2>/dev/null | sort -u | grep -i "$proto" | wc -l)
+        
+        local XRAY_STAT=$(systemctl is-active --quiet xray && echo -e "\033[0;32m[ONLINE]\033[0m" || echo -e "\033[0;31m[OFFLINE]\033[0m")
+        local RAW_STAT=$(systemctl is-active --quiet xray && echo "[ONLINE]" || echo "[OFFLINE]")
+        
+        local L_HEAD="  Total Accounts : ${XRAY_USERS}      Service : ${RAW_STAT}"
+        local PAD_HEAD=$(( 57 - ${#L_HEAD} ))
+        [ $PAD_HEAD -lt 0 ] && PAD_HEAD=0
+
+        echo -e "\033[0;34m ┌── \033[0;33m${proto^^} MANAGER\033[0;34m ────────────────────────────────────────┐\033[0m"
+        echo -e "\033[0;34m │                                                         │\033[0m"
+        echo -e "\033[0;34m │\033[0;36m  Total Accounts : \033[0;32m${XRAY_USERS}\033[0;36m      Service : ${XRAY_STAT}\033[0m$(printf "%${PAD_HEAD}s" "")\033[0;34m│\033[0m"
+        echo -e "\033[0;34m │                                                         │\033[0m"
+        echo -e "\033[0;34m ├─ \033[0;34mACCOUNT PROVISIONING \033[0;34m──────────────────────────────────┤\033[0m"
+        echo -e "\033[0;34m │  \033[0;32m[01]\033[0;36m Create Premium Account (TCP TLS - Port 8443)      \033[0;34m│\033[0m"
+        echo -e "\033[0;34m │  \033[0;32m[02]\033[0;36m Create Premium Account (WebSocket - Port 443/80)  \033[0;34m│\033[0m"
+        echo -e "\033[0;34m │  \033[0;32m[03]\033[0;36m Create Trial Account (12 Hours - WS)              \033[0;34m│\033[0m"
+        echo -e "\033[0;34m ├─ \033[0;34mACCOUNT MANAGEMENT \033[0;34m────────────────────────────────────┤\033[0m"
+        echo -e "\033[0;34m │  \033[0;32m[04]\033[0;36m Delete ${proto^^} Account                                \033[0;34m│\033[0m"
+        echo -e "\033[0;34m ├─ \033[0;34mMONITORING & DIAGNOSTICS \033[0;34m──────────────────────────────┤\033[0m"
+        echo -e "\033[0;34m │  \033[0;32m[05]\033[0;36m List Active ${proto^^} Accounts                          \033[0;34m│\033[0m"
+        echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
+        echo -e ""
+        echo -e "\033[0;31m ┌─────────────────────────────────────────────────────────┐\033[0m"
+        echo -e "\033[0;31m │  \033[0;32m[00]\033[0;31m Back to Main Menu                                 \033[0;31m│\033[0m"
+        echo -e "\033[0;31m └─────────────────────────────────────────────────────────┘\033[0m"
+        echo -ne "\n\033[0;32mSelect option [00-05]: \033[0m"
+        read -r opt
         
         case $opt in
-            1|2|3)
+            1|01|2|02|3|03)
                 clear
-                echo -e "\033[0;36m┌─ CREATE ${proto^^} ACCOUNT ───────────────────────────────\033[0m"
-                read -p "│  Username: " user
+                echo -e "\033[0;34m ┌── \033[0;33mCREATE ${proto^^} ACCOUNT\033[0;34m ─────────────────────────────────┐\033[0m"
+                read -p " │  Username (No spaces): " raw_user
+                local user="${proto}_${raw_user}"
                 
                 local credential=$(uuidgen)
                 local DOMAIN=$(cat /etc/techfeeds/domain 2>/dev/null || curl -s4 ifconfig.me)
@@ -34,12 +49,12 @@ xray_user_manager() {
                 local PATH_VAR="/"
                 local TRANSPORT_MODE="tcp"
                 
-                if [ "$opt" -eq 2 ] || [ "$opt" -eq 3 ]; then
+                if [ "$opt" -eq 2 ] || [ "$opt" -eq 3 ] || [ "$opt" -eq 02 ] || [ "$opt" -eq 03 ]; then
                     NET_TYPE="ws"
-                    echo -e "\033[0;36m│                                                          \033[0m"
-                    echo -e "\033[0;36m│  \033[0;32m[1]\033[0m \033[0;36mWebSocket TLS (Port 443)                      \033[0m"
-                    echo -e "\033[0;36m│  \033[0;32m[2]\033[0m \033[0;36mWebSocket Non-TLS (Port 80)                   \033[0m"
-                    echo -ne "\n\033[0;32mSelect WS Mode [1-2]: \033[0m"
+                    echo -e "\033[0;34m ├─ \033[0;34mWEBSOCKET MODE \033[0;34m──────────────────────────────────────┤\033[0m"
+                    echo -e "\033[0;34m │  \033[0;32m[1]\033[0;36m WebSocket TLS (Port 443)                      \033[0;34m│\033[0m"
+                    echo -e "\033[0;34m │  \033[0;32m[2]\033[0;36m WebSocket Non-TLS (Port 80)                   \033[0;34m│\033[0m"
+                    echo -ne " \033[0;32mSelect WS Mode [1-2]: \033[0m"
                     read -r ws_mode
                     
                     if [ "$ws_mode" -eq 2 ]; then
@@ -71,27 +86,26 @@ xray_user_manager() {
                     TRANSPORT_MODE="tcp-tls"
                 fi
 
-                if [ "$opt" -eq 3 ]; then
-                    local EXP_TEXT="6 Hours (Trial)"
-                    local EXP_DATE=$(date -d "+6 hours" +"%Y-%m-%d %H:%M:%S")
+                if [ "$opt" -eq 3 ] || [ "$opt" -eq 03 ]; then
+                    local EXP_TEXT="12 Hours (Trial)"
+                    local EXP_DATE=$(date -d "+12 hours" +"%Y-%m-%d %H:%M:%S")
                     if [ "$proto" = "trojan" ]; then
-                        echo "jq 'del(.inbounds[].settings.clients[] | select(.password==\"$credential\"))' $CONF > /tmp/xray_tmp && mv /tmp/xray_tmp $CONF && systemctl restart xray" | at now + 6 hours >/dev/null 2>&1
+                        echo "jq 'del(.inbounds[].settings.clients[] | select(.password==\"$credential\"))' $CONF > /tmp/xray_tmp && mv /tmp/xray_tmp $CONF && systemctl restart xray" | at now + 12 hours >/dev/null 2>&1
                     else
-                        echo "jq 'del(.inbounds[].settings.clients[] | select(.id==\"$credential\"))' $CONF > /tmp/xray_tmp && mv /tmp/xray_tmp $CONF && systemctl restart xray" | at now + 6 hours >/dev/null 2>&1
+                        echo "jq 'del(.inbounds[].settings.clients[] | select(.id==\"$credential\"))' $CONF > /tmp/xray_tmp && mv /tmp/xray_tmp $CONF && systemctl restart xray" | at now + 12 hours >/dev/null 2>&1
                     fi
                 else
-                    read -p "│  Duration (Days): " days
+                    echo -e "\033[0;34m ├─────────────────────────────────────────────────────────┤\033[0m"
+                    read -p " │  Duration (Days): " days
                     local EXP_TEXT="$days Days"
                     local EXP_DATE=$(date -d "+$days days" +"%Y-%m-%d")
                 fi
                 
                 if [ -f "$CONF" ]; then
                     if [ "$proto" = "trojan" ]; then
-                        # Inject into target inbound
                         jq --arg p "$credential" --arg u "$user" \
                         ".inbounds[$INBOUND_IDX].settings.clients += [{\"password\": \$p, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
                         
-                        # If WS, also inject into the general WS inbound index
                         if [ "$NET_TYPE" = "ws" ] && [ "$INBOUND_IDX" -ne 4 ]; then
                             jq --arg p "$credential" --arg u "$user" \
                             ".inbounds[4].settings.clients += [{\"password\": \$p, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
@@ -136,46 +150,60 @@ xray_user_manager() {
                     fi
                     
                     systemctl restart xray
+                    echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
                     
                     clear
-                    echo -e "\033[0;36m┌─ ${proto^^} ACCOUNT CREATED SUCCESSFULLY ──────────────────\033[0m"
-                    echo -e "\033[0;36m│  Username     : \033[1;37m$user\033[0m"
-                    echo -e "\033[0;36m│  Domain       : \033[1;36m$DOMAIN\033[0m"
-                    echo -e "\033[0;36m│  Duration     : \033[1;33m$EXP_TEXT\033[0m"
-                    echo -e "\033[0;36m│  Transport    : \033[1;32m$NET_TYPE ($PATH_VAR)\033[0m"
-                    echo -e "\033[0;36m│  Port & Sec   : \033[1;32mPort $PORT ($SECURITY)\033[0m"
-                    echo -e "\033[0;36m│  Expiry Date  : \033[1;31m$EXP_DATE\033[0m"
-                    echo -e "\033[0;36m├─ CONFIGURATION LINK (Copy below) ────────────────────────\033[0m"
-                    echo -e "\033[0;36m│  \033[36m$LINK\033[0m"
-                    echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
+                    echo -e "\033[0;34m ┌── \033[0;33m${proto^^} ACCOUNT CREATED SUCCESSFULLY\033[0;34m ──────────────────┐\033[0m"
+                    echo -e "\033[0;34m │\033[0;36m  Username     : \033[1;37m$user\033[0m"
+                    echo -e "\033[0;34m │\033[0;36m  Domain       : \033[1;36m$DOMAIN\033[0m"
+                    echo -e "\033[0;34m │\033[0;36m  Duration     : \033[1;33m$EXP_TEXT\033[0m"
+                    echo -e "\033[0;34m │\033[0;36m  Transport    : \033[1;32m$NET_TYPE ($PATH_VAR)\033[0m"
+                    echo -e "\033[0;34m │\033[0;36m  Port & Sec   : \033[1;32mPort $PORT ($SECURITY)\033[0m"
+                    echo -e "\033[0;34m │\033[0;36m  Expiry Date  : \033[1;31m$EXP_DATE\033[0m"
+                    echo -e "\033[0;34m ├─ \033[0;34mCONFIGURATION LINK \033[0;34m────────────────────────────────────┤\033[0m"
+                    echo -e "\033[0;34m │  \033[36m$LINK\033[0m"
+                    echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
                 else
-                    echo "│  Error: Xray config not found. Run installer first."
+                    echo " │  \033[0;31mError: Xray config not found. Run installer first.\033[0m"
                 fi
                 read -p "Press Enter to return..."
                 ;;
-            4)
+            4|04)
                 clear
-                echo -e "\033[0;36m┌─ DELETE ${proto^^} ACCOUNT ───────────────────────────────\033[0m"
-                read -p "│  Enter username to delete: " user
+                echo -e "\033[0;34m ┌── \033[0;33mDELETE ${proto^^} ACCOUNT\033[0;34m ─────────────────────────────────┐\033[0m"
+                read -p " │  Enter username to delete: " user
+                
+                # Check if they typed the raw name or the prefixed name
+                if [[ "$user" != ${proto}_* ]]; then
+                    user="${proto}_${user}"
+                fi
+
                 if [ -f "$CONF" ]; then
                     jq --arg u "$user" \
                     '.inbounds[].settings.clients |= map(select(.email != $u))' "$CONF" > tmp.json && mv tmp.json "$CONF"
                     systemctl restart xray
-                    echo -e "│  \033[0;32m● SUCCESS: $user deleted and Xray restarted.\033[0m"
+                    echo -e " │  \033[0;32m● SUCCESS: $user deleted and Xray restarted.\033[0m"
                 fi
-                echo -e "\033[0m└──────────────────────────────────────────────────────────\033[0m"
+                echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
                 read -p "Press Enter to return..."
                 ;;
-            5)
+            5|05)
                 clear
-                echo -e "\033[0;36m┌─ ACTIVE ${proto^^} ACCOUNTS ──────────────────────────────\033[0m"
+                echo -e "\033[0;34m ┌── \033[0;33mACTIVE ${proto^^} ACCOUNTS\033[0;34m ────────────────────────────────┐\033[0m"
                 if [ -f "$CONF" ]; then
-                    jq -r '.inbounds[].settings.clients[]? | select(.email != null) | "│  User: \(.email)"' "$CONF" | sort -u
+                    local count=$(jq -r '.inbounds[].settings.clients[]? | select(.email != null) | .email' "$CONF" | sort -u | grep -i "$proto" | wc -l)
+                    if [ "$count" -eq 0 ]; then
+                        echo -e "\033[0;34m │\033[0;37m  No active $proto accounts found.                     \033[0;34m│\033[0m"
+                    else
+                        jq -r '.inbounds[].settings.clients[]? | select(.email != null) | .email' "$CONF" | sort -u | grep -i "$proto" | while read -r acc; do
+                            echo -e "\033[0;34m │  \033[0;36m👤 User:\033[0m $acc"
+                        done
+                    fi
                 fi
-                echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
+                echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
                 read -p "Press Enter to return..."
                 ;;
-            0) return ;;
+            0|00) return ;;
             *) echo -e "\033[1;31mInvalid option.\033[0m"; sleep 1 ;;
         esac
     done
