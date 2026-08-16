@@ -53,13 +53,13 @@ xray_user_manager() {
                     fi
 
                     if [ "$proto" = "vless" ]; then
-                        INBOUND_IDX=1
+                        INBOUND_IDX=2
                         PATH_VAR="/vless-ws"
                     elif [ "$proto" = "vmess" ]; then
-                        INBOUND_IDX=2
+                        INBOUND_IDX=3
                         PATH_VAR="/vmess-ws"
                     elif [ "$proto" = "trojan" ]; then
-                        INBOUND_IDX=3
+                        INBOUND_IDX=4
                         PATH_VAR="/trojan-ws"
                     fi
                 else
@@ -91,10 +91,10 @@ xray_user_manager() {
                         jq --arg p "$credential" --arg u "$user" \
                         ".inbounds[$INBOUND_IDX].settings.clients += [{\"password\": \$p, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
                         
-                        # If WS, also inject into the general WS inbound index (assumed index 3 or matching WS block) so port 80/443 handlers work
-                        if [ "$NET_TYPE" = "ws" ] && [ "$INBOUND_IDX" -ne 3 ]; then
+                        # If WS, also inject into the general WS inbound index
+                        if [ "$NET_TYPE" = "ws" ] && [ "$INBOUND_IDX" -ne 4 ]; then
                             jq --arg p "$credential" --arg u "$user" \
-                            ".inbounds[3].settings.clients += [{\"password\": \$p, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
+                            ".inbounds[4].settings.clients += [{\"password\": \$p, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
                         fi
 
                         if [ "$TRANSPORT_MODE" = "ws-nontls" ]; then
@@ -109,9 +109,9 @@ xray_user_manager() {
                         jq --arg id "$credential" --arg u "$user" \
                         ".inbounds[$INBOUND_IDX].settings.clients += [{\"id\": \$id, \"alterId\": 0, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
 
-                        if [ "$NET_TYPE" = "ws" ] && [ "$INBOUND_IDX" -ne 2 ]; then
+                        if [ "$NET_TYPE" = "ws" ] && [ "$INBOUND_IDX" -ne 3 ]; then
                             jq --arg id "$credential" --arg u "$user" \
-                            ".inbounds[2].settings.clients += [{\"id\": \$id, \"alterId\": 0, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
+                            ".inbounds[3].settings.clients += [{\"id\": \$id, \"alterId\": 0, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
                         fi
                         
                         local VMESS_JSON="{\"v\":\"2\",\"ps\":\"$user\",\"add\":\"$DOMAIN\",\"port\":\"$PORT\",\"id\":\"$credential\",\"aid\":\"0\",\"net\":\"$NET_TYPE\",\"type\":\"none\",\"host\":\"$DOMAIN\",\"path\":\"$PATH_VAR\",\"tls\":\"${SECURITY}\",\"sni\":\"$DOMAIN\"}"
@@ -121,9 +121,9 @@ xray_user_manager() {
                         jq --arg id "$credential" --arg u "$user" \
                         ".inbounds[$INBOUND_IDX].settings.clients += [{\"id\": \$id, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
 
-                        if [ "$NET_TYPE" = "ws" ] && [ "$INBOUND_IDX" -ne 1 ]; then
+                        if [ "$NET_TYPE" = "ws" ] && [ "$INBOUND_IDX" -ne 2 ]; then
                             jq --arg id "$credential" --arg u "$user" \
-                            ".inbounds[1].settings.clients += [{\"id\": \$id, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
+                            ".inbounds[2].settings.clients += [{\"id\": \$id, \"email\": \$u}]" "$CONF" > tmp.json && mv tmp.json "$CONF"
                         fi
                         
                         if [ "$TRANSPORT_MODE" = "ws-nontls" ]; then
