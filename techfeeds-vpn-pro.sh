@@ -16,7 +16,8 @@ if [ -n "$1" ]; then exit 0; fi
 
 while true; do
     draw_dashboard
-    read -p "Select [0-11]: " choice
+    echo -ne "\033[0;32mSelect an option [00-11]: \033[0m"
+    read -r choice
     case $choice in
         1|01) ssh_menu ;;
         2|02) vless_menu ;;
