@@ -45,7 +45,7 @@ sysctl -p > /dev/null 2>&1
 echo -e "│  Installing Xray Core..."
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install > /dev/null 2>&1
 
-echo -e "│  Configuring Multi-Protocol Xray (TCP/TLS on 8443, WS on 8080)..."
+echo -e "│  Configuring Multi-Protocol Xray (TCP/TLS on 8443, Mux on 80)..."
 cat << 'EOF' > /usr/local/etc/xray/config.json
 {
   "log": {
@@ -74,8 +74,43 @@ cat << 'EOF' > /usr/local/etc/xray/config.json
       }
     },
     {
+      "tag": "multiplexer-tcp",
+      "port": 80,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "54a91504-fb4d-49e5-888e-31d88562be5d",
+            "email": "mux-front"
+          }
+        ],
+        "decryption": "none",
+        "fallbacks": [
+          {
+            "path": "/vless-ws",
+            "dest": 10001
+          },
+          {
+            "path": "/vmess-ws",
+            "dest": 10002
+          },
+          {
+            "path": "/trojan-ws",
+            "dest": 10003
+          },
+          {
+            "dest": 8080
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp"
+      }
+    },
+    {
       "tag": "vless-ws",
-      "port": 8080,
+      "listen": "127.0.0.1",
+      "port": 10001,
       "protocol": "vless",
       "settings": {
         "clients": [],
@@ -90,7 +125,8 @@ cat << 'EOF' > /usr/local/etc/xray/config.json
     },
     {
       "tag": "vmess-ws",
-      "port": 8080,
+      "listen": "127.0.0.1",
+      "port": 10002,
       "protocol": "vmess",
       "settings": {
         "clients": []
@@ -104,7 +140,8 @@ cat << 'EOF' > /usr/local/etc/xray/config.json
     },
     {
       "tag": "trojan-ws",
-      "port": 8080,
+      "listen": "127.0.0.1",
+      "port": 10003,
       "protocol": "trojan",
       "settings": {
         "clients": []
@@ -214,10 +251,6 @@ def proxy(client):
             
         target_port = 22 # Default to SSH for /ssh-ws or general payloads
         
-        # Route Xray WebSockets to 8080
-        if b"/vless-ws" in initial_data or b"/vmess-ws" in initial_data or b"/trojan-ws" in initial_data:
-            target_port = 8080
-
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.connect(('127.0.0.1', target_port))
         
@@ -244,7 +277,7 @@ def proxy(client):
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.bind(('0.0.0.0', 80))
+s.bind(('127.0.0.1', 8080))
 s.listen(200)
 while True:
     c, _ = s.accept()
