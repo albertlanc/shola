@@ -24,7 +24,7 @@ apt-get update -y > /dev/null 2>&1
 apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 cmake make gcc g++ at > /dev/null 2>&1
 
 rm -rf /opt/techfeeds-vpn-pro
-git clone https://github.com/albertlanc/smartking.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
+git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
 
 # AUTO-SANITATION: Automatically purge any stray formatting tags on fresh clone
 find /opt/techfeeds-vpn-pro -type f -name "*.sh" -exec sed -i -E 's/\[span_[a-zA-Z0-9_]+\]\((start_span|end_span)\)//g; s/\+\]//g; s/\+\]//g' {} + 2>/dev/null
@@ -205,7 +205,6 @@ cmake .. -DBUILD_NOTHING_BY_DEFAULT=1 -DBUILD_UDPGW=1 > /dev/null 2>&1
 make install > /dev/null 2>&1
 cd /root
 
-# Create Systemd services for BadVPN ports 7100 through 7300
 for port in 7100 7101 7200 7300; do
 cat <<EOF > /etc/systemd/system/badvpn-$port.service
 [Unit]
@@ -254,7 +253,6 @@ def proxy(client):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.connect(('127.0.0.1', target_port))
         
-        # Handle SSH WebSocket upgrade response flawlessly to avoid 404/400 errors
         if target_port == 22 and (b"HTTP/1.1" in initial_data or b"Upgrade: websocket" in initial_data):
             client.send(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n")
         else:
