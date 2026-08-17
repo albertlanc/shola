@@ -21,7 +21,8 @@ echo -e "\033[0;36m┌─ TECHFEEDS VPN PRO - INSTALLING ───────�
 
 echo -e "│  Installing system dependencies and cloning repository..."
 apt-get update -y > /dev/null 2>&1
-apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 cmake make gcc g++ at iptables > /dev/null 2>&1
+# ADDED MISSING VM DEPENDENCIES: unzip, zip, ca-certificates
+apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 cmake make gcc g++ at iptables unzip zip ca-certificates > /dev/null 2>&1
 
 rm -rf /opt/techfeeds-vpn-pro
 git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
@@ -46,6 +47,9 @@ echo -e "│  Installing Xray Core..."
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install > /dev/null 2>&1
 
 echo -e "│  Configuring Multi-Protocol Xray (TCP/TLS on 8443, Mux on 80)..."
+# Explicitly create Xray directory in case official installer hiccuped
+mkdir -p /usr/local/etc/xray
+
 cat << 'EOF' > /usr/local/etc/xray/config.json
 {
   "log": {
@@ -171,7 +175,9 @@ ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf 2>/dev/null
 systemctl enable --now systemd-resolved 2>/dev/null
 
 rm -rf /opt/dnstt
-git clone https://www.bamsoftware.com/git/dnstt.git /opt/dnstt > /dev/null 2>&1
+# Added GitHub Mirror Fallback in case bamsoftware is blocked by VPS provider
+git clone https://www.bamsoftware.com/git/dnstt.git /opt/dnstt > /dev/null 2>&1 || git clone https://github.com/aztecrabbit/dnstt.git /opt/dnstt > /dev/null 2>&1
+
 cd /opt/dnstt/dnstt-server && go build
 mv dnstt-server /usr/local/bin/
 
