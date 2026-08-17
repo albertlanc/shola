@@ -21,8 +21,8 @@ echo -e "\033[0;36m┌─ TECHFEEDS VPN PRO - INSTALLING ───────�
 
 echo -e "│  Installing system dependencies and cloning repository..."
 apt-get update -y > /dev/null 2>&1
-# ADDED MISSING VM DEPENDENCIES: unzip, zip, ca-certificates
-apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 cmake make gcc g++ at iptables unzip zip ca-certificates > /dev/null 2>&1
+# ADDED MISSING VM DEPENDENCIES: unzip, zip, ca-certificates, socat
+apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 cmake make gcc g++ at iptables unzip zip ca-certificates socat > /dev/null 2>&1
 
 rm -rf /opt/techfeeds-vpn-pro
 git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
@@ -236,7 +236,7 @@ systemctl stop nginx 2>/dev/null
 curl -s https://get.acme.sh | sh > /dev/null 2>&1
 
 ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt > /dev/null 2>&1
-~/.acme.sh/acme.sh --issue -d "$DOMAIN" --standalone --keylength ec-256 > /dev/null 2>&1
+~/.acme.sh/acme.sh --issue -d "$DOMAIN" --standalone --keylength ec-256 --force > /dev/null 2>&1
 ~/.acme.sh/acme.sh --install-cert -d "$DOMAIN" --ecc \
     --fullchain-file /etc/ssl/techfeeds/fullchain.cer \
     --key-file /etc/ssl/techfeeds/private.key > /dev/null 2>&1
