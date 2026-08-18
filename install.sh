@@ -38,14 +38,23 @@ hostnamectl set-hostname "$DOMAIN" 2>/dev/null
 echo -e "net.core.default_qdisc=fq\nnet.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf 2>/dev/null
 sysctl -p > /dev/null 2>&1
 
+echo -e "│  Purging default web servers & clearing Ports 80 and 443..."
+systemctl stop nginx apache2 2>/dev/null
+systemctl disable nginx apache2 2>/dev/null
+killall socat apache2 nginx 2>/dev/null
+fuser -k 80/tcp 2>/dev/null
+fuser -k 443/tcp 2>/dev/null
+
 echo -e "│  Generating Let's Encrypt SSL for $DOMAIN..."
-systemctl stop nginx 2>/dev/null
 curl -s https://get.acme.sh | sh > /dev/null 2>&1
 ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt > /dev/null 2>&1
 ~/.acme.sh/acme.sh --issue -d "$DOMAIN" --standalone --keylength ec-256 --force > /dev/null 2>&1
 ~/.acme.sh/acme.sh --install-cert -d "$DOMAIN" --ecc \
     --fullchain-file /etc/ssl/techfeeds/fullchain.cer \
     --key-file /etc/ssl/techfeeds/private.key > /dev/null 2>&1
+
+# Universal read permissions for Xray and Stunnel daemons
+chmod 755 /etc/ssl/techfeeds 2>/dev/null
 chmod 644 /etc/ssl/techfeeds/* 2>/dev/null
 
 echo -e "│  Installing Xray Core (VLESS, VMess, Trojan, Shadowsocks)..."
@@ -126,7 +135,10 @@ iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o $IFACE -j MASQUERADE
 iptables -t nat -A POSTROUTING -s 10.9.0.0/24 -o $IFACE -j MASQUERADE
 
 echo -e "│  Installing Hysteria V2 (UDP 443)..."
-bash -c "$(curl -fsSL https://get.hy2.sh/)" -- -y > /dev/null 2>&1
+wget -qO /usr/local/bin/hysteria https://github.com/apernet/hysteria/releases/latest/download/hysteria-linux-amd64 > /dev/null 2>&1
+chmod +x /usr/local/bin/hysteria
+mkdir -p /etc/hysteria
+
 cat <<EOF > /etc/hysteria/config.yaml
 listen: :443
 tls:
@@ -141,6 +153,24 @@ masquerade:
     url: https://bing.com
     rewriteHost: true
 EOF
+
+cat <<EOF > /etc/systemd/system/hysteria-server.service
+[Unit]
+Description=Hysteria V2 Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/hysteria server -c /etc/hysteria/config.yaml
+WorkingDirectory=/etc/hysteria
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
 systemctl enable --now hysteria-server.service > /dev/null 2>&1
 
 echo -e "│  Installing UDP Custom (Port 36712)..."
@@ -283,7 +313,7 @@ if [ -f /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh ]; then
     ln -sf /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh /usr/local/bin/techfeeds-vpn-pro
 fi
 
-systemctl restart xray > /dev/null 2>&1
+systemctl restart xray stunnel4 hysteria-server > /dev/null 2>&1
 systemctl enable xray > /dev/null 2>&1
 
 echo -e "│  \033[0;32mInstallation completed successfully!\033[0m"
