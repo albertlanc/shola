@@ -12,9 +12,8 @@ draw_dashboard() {
     local RAM_USED=$(free -m | awk '/Mem:/ {print $3}')
     local RAM_PERCENT=0
     [ "$RAM_TOTAL" -gt 0 ] && RAM_PERCENT=$((RAM_USED * 100 / RAM_TOTAL))
-    local BAR_LENGTH=12
-    local FILLED_LEN=$((RAM_PERCENT * BAR_LENGTH / 100))
-    local EMPTY_LEN=$((BAR_LENGTH - FILLED_LEN))
+    local FILLED_LEN=$((RAM_PERCENT * 12 / 100))
+    local EMPTY_LEN=$((12 - FILLED_LEN))
     local RAM_BAR="["$(printf "%${FILLED_LEN}s" | tr ' ' '#')$(printf "%${EMPTY_LEN}s" | tr ' ' '-')"]"
 
     local SSH_USERS=$(awk -F':' '{ if ($3 >= 1000 && $1 != "nobody") print $1 }' /etc/passwd | wc -l)
@@ -23,17 +22,19 @@ draw_dashboard() {
 
     local SSH_RAW=$(systemctl is-active --quiet ssh && echo "[OK]" || echo "[FAIL]")
     local XRAY_RAW=$(systemctl is-active --quiet xray && echo "[OK]" || echo "[FAIL]")
-    local DNS_RAW=$(systemctl is-active --quiet dnstt-server && echo "[OK]" || echo "[FAIL]")
+    local OVPN_RAW=$(systemctl is-active --quiet openvpn@server-tcp && echo "[OK]" || echo "[FAIL]")
+    local HY2_RAW=$(systemctl is-active --quiet hysteria-server && echo "[OK]" || echo "[FAIL]")
 
     local SSH_STAT=$(systemctl is-active --quiet ssh && echo -e "\033[0;32m[OK]\033[0m" || echo -e "\033[0;31m[FAIL]\033[0m")
     local XRAY_STAT=$(systemctl is-active --quiet xray && echo -e "\033[0;32m[OK]\033[0m" || echo -e "\033[0;31m[FAIL]\033[0m")
-    local DNS_STAT=$(systemctl is-active --quiet dnstt-server && echo -e "\033[0;32m[OK]\033[0m" || echo -e "\033[0;31m[FAIL]\033[0m")
+    local OVPN_STAT=$(systemctl is-active --quiet openvpn@server-tcp && echo -e "\033[0;32m[OK]\033[0m" || echo -e "\033[0;31m[FAIL]\033[0m")
+    local HY2_STAT=$(systemctl is-active --quiet hysteria-server && echo -e "\033[0;32m[OK]\033[0m" || echo -e "\033[0;31m[FAIL]\033[0m")
 
     local L_HOST="  Host : $IP"
     local L_UP="  Up   : $UPTIME"
     local L_RAM="  RAM  : $RAM_BAR ${RAM_PERCENT}% (${RAM_USED}MB/${RAM_TOTAL}MB)"
-    local L_SVC="  SVC  : Xray:${XRAY_RAW} SSH:${SSH_RAW} DNSTT:${DNS_RAW}"
-    local L_ACT="  Active -> SSH:${SSH_USERS} Xray:${XRAY_USERS}"
+    local L_SVC="  SVC  : Xray:${XRAY_RAW} SSH:${SSH_RAW} OVPN:${OVPN_RAW} HY2:${HY2_RAW}"
+    local L_ACT="  Active -> Sys:${SSH_USERS} Xray:${XRAY_USERS}"
 
     local PAD_HOST=$(( 57 - ${#L_HOST} ))
     local PAD_UP=$(( 57 - ${#L_UP} ))
@@ -52,39 +53,37 @@ draw_dashboard() {
     echo -e " \033[0;32m* Management:     TECHFEEDS VPN PRO\033[0m"
     echo -e " \033[0;32m* Support:        https://t.me/techfeeds\033[0m"
     echo -e ""
-    echo -e " \033[0;32mSystem information as of $DATE\033[0m"
-    echo -e ""
-    echo -e "   \033[0;32mSystem load:\033[0m            $SYS_LOAD"
-    echo -e "   \033[0;32mUsage of /:\033[0m             $DISK_USAGE"
-    echo -e ""
     
-    echo -e "\033[0;34m ┌── \033[0;33mTECHFEEDS VPN PRO V2.5\033[0;34m ───────────────────────────────┐\033[0m"
+    echo -e "\033[0;34m ┌── \033[0;33mTECHFEEDS VPN PRO V3.0 (ELITE)\033[0;34m ───────────────────────┐\033[0m"
     echo -e "\033[0;34m │                                                         │\033[0m"
     echo -e "\033[0;34m │\033[0;36m  Host : \033[0;32m$IP\033[0m$(printf "%${PAD_HOST}s" "")\033[0;34m│\033[0m"
     echo -e "\033[0;34m │\033[0;36m  Up   : \033[0;32m$UPTIME\033[0m$(printf "%${PAD_UP}s" "")\033[0;34m│\033[0m"
     echo -e "\033[0;34m │\033[0;36m  RAM  : \033[0;32m$RAM_BAR \033[0;31m${RAM_PERCENT}%\033[0;36m (${RAM_USED}MB/${RAM_TOTAL}MB)\033[0m$(printf "%${PAD_RAM}s" "")\033[0;34m│\033[0m"
-    echo -e "\033[0;34m │\033[0;36m  SVC  : \033[0;37mXray:${XRAY_STAT}\033[0;37m SSH:${SSH_STAT}\033[0;37m DNSTT:${DNS_STAT}\033[0m$(printf "%${PAD_SVC}s" "")\033[0;34m│\033[0m"
-    echo -e "\033[0;34m │\033[0;36m  \033[1;37m📊 Active -> \033[0;32mSSH:${SSH_USERS} \033[0;32mXray:${XRAY_USERS}\033[0m$(printf "%${PAD_ACT}s" "")\033[0;34m│\033[0m"
+    echo -e "\033[0;34m │\033[0;36m  SVC  : \033[0;37mXray:${XRAY_STAT}\033[0;37m SSH:${SSH_STAT}\033[0;37m OVPN:${OVPN_STAT}\033[0;37m HY2:${HY2_STAT}\033[0m$(printf "%${PAD_SVC}s" "")\033[0;34m│\033[0m"
+    echo -e "\033[0;34m │\033[0;36m  \033[1;37m📊 Active -> \033[0;32mSys:${SSH_USERS} \033[0;32mXray:${XRAY_USERS}\033[0m$(printf "%${PAD_ACT}s" "")\033[0;34m│\033[0m"
     echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
     echo -e ""
     echo -e "\033[0;34m ┌─ \033[0;34mPROTOCOL MANAGEMENT \033[0;34m───────────────────────────────────┐\033[0m"
-    echo -e "\033[0;34m │  \033[0;32m[01]\033[0;36m SSH & SSHWS Manager                               \033[0;34m│\033[0m"
-    echo -e "\033[0;34m │  \033[0;32m[02]\033[0;36m VLESS Manager                                     \033[0;34m│\033[0m"
-    echo -e "\033[0;34m │  \033[0;32m[03]\033[0;36m VMESS Manager                                     \033[0;34m│\033[0m"
-    echo -e "\033[0;34m │  \033[0;32m[04]\033[0;36m Trojan Manager                                    \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[01]\033[0;36m SSH, SSHWS & UDP Custom Manager                   \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[02]\033[0;36m OpenVPN Manager                                   \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[03]\033[0;36m Xray VLESS Manager                                \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[04]\033[0;36m Xray VMESS Manager                                \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[05]\033[0;36m Xray Trojan Manager                               \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[06]\033[0;36m Shadowsocks Manager                               \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[07]\033[0;36m Hysteria V2 Manager                               \033[0;34m│\033[0m"
     echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
     echo -e ""
     echo -e "\033[0;34m ┌─ \033[0;34mSERVER & AUTOMATION \033[0;34m───────────────────────────────────┐\033[0m"
-    echo -e "\033[0;34m │  \033[0;32m[05]\033[0;36m Xray & Transport Manager                          \033[0;34m│\033[0m"
-    echo -e "\033[0;34m │  \033[0;32m[06]\033[0;36m SSL/TLS & Domain Manager                          \033[0;34m│\033[0m"
-    echo -e "\033[0;34m │  \033[0;32m[07]\033[0;36m Server & Security Manager                         \033[0;34m│\033[0m"
-    echo -e "\033[0;34m │  \033[0;32m[08]\033[0;36m Service & Port Manager                            \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[08]\033[0;36m Xray & Transport Manager                          \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[09]\033[0;36m SSL/TLS & Domain Manager                          \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[10]\033[0;36m Server & Security Manager                         \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[11]\033[0;36m Service & Port Manager                            \033[0;34m│\033[0m"
     echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
     echo -e ""
     echo -e "\033[0;34m ┌─ \033[0;34mDIAGNOSTICS & TOOLS \033[0;34m───────────────────────────────────┐\033[0m"
-    echo -e "\033[0;34m │  \033[0;32m[09]\033[0;36m Monitoring & Tools                                \033[0;34m│\033[0m"
-    echo -e "\033[0;34m │  \033[0;32m[10]\033[0;36m Advanced Settings                                 \033[0;34m│\033[0m"
-    echo -e "\033[0;34m │  \033[0;32m[11]\033[0;36m Change Server Ports                               \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[12]\033[0;36m Monitoring & Tools                                \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[13]\033[0;36m Advanced Settings                                 \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[14]\033[0;36m Change Server Ports                               \033[0;34m│\033[0m"
     echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
     echo -e ""
     echo -e "\033[0;31m ┌─────────────────────────────────────────────────────────┐\033[0m"
