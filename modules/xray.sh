@@ -212,3 +212,80 @@ xray_user_manager() {
 vless_menu() { xray_user_manager "vless"; }
 vmess_menu() { xray_user_manager "vmess"; }
 trojan_menu() { xray_user_manager "trojan"; }
+
+ss_menu() {
+    while true; do
+        clear
+        echo -e "\033[0;34m ┌── \033[0;33mSHADOWSOCKS MANAGER\033[0;34m ──────────────────────────────────┐\033[0m"
+        echo -e "\033[0;34m │  \033[0;32m[01]\033[0;36m Create Shadowsocks Account                        \033[0;34m│\033[0m"
+        echo -e "\033[0;34m │  \033[0;32m[02]\033[0;36m Delete Shadowsocks Account                        \033[0;34m│\033[0m"
+        echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
+        echo -e "\033[0;31m ┌─────────────────────────────────────────────────────────┐\033[0m"
+        echo -e "\033[0;31m │  \033[0;32m[00]\033[0;31m Back to Main Menu                                 \033[0;31m│\033[0m"
+        echo -e "\033[0;31m └─────────────────────────────────────────────────────────┘\033[0m"
+        
+        echo -ne "\n\033[0;32mSelect option [00-02]: \033[0m"
+        read -r opt
+
+        case $opt in
+            1|01)
+                clear
+                echo -e "\033[0;34m ┌── \033[0;33mCREATE SHADOWSOCKS ACCOUNT\033[0;34m ───────────────────────────┐\033[0m"
+                read -p " │  Username: " user
+                read -p " │  Password (blank for secure random): " pass
+                [ -z "$pass" ] && pass=$(openssl rand -base64 12)
+                
+                local CONF="/usr/local/etc/xray/config.json"
+                
+                # Inject user into both TCP and WebSocket inbounds
+                jq --arg user "$user" --arg pass "$pass" '
+                (.inbounds[] | select(.tag=="shadowsocks-tcp") | .settings.clients) += [{"email": $user, "password": $pass}] |
+                (.inbounds[] | select(.tag=="shadowsocks-ws") | .settings.clients) += [{"email": $user, "password": $pass}]
+                ' "$CONF" > /tmp/xray.json && mv /tmp/xray.json "$CONF"
+                
+                systemctl restart xray
+                
+                local DOMAIN=$(cat /etc/techfeeds/domain 2>/dev/null || curl -s4 ifconfig.me)
+                local P_TCP=$(jq -r '.inbounds[] | select(.tag=="shadowsocks-tcp") | .port' "$CONF" 2>/dev/null)
+                [ -z "$P_TCP" ] && P_TCP="8388"
+                local P_MUX="80"
+                
+                local METHOD="aes-256-gcm"
+                local CRED=$(echo -n "${METHOD}:${pass}" | base64 -w 0)
+                local LINK_TCP="ss://${CRED}@${DOMAIN}:${P_TCP}#${user}-TCP"
+                
+                local PLUGIN_OPTS=$(echo -n "obfs=websocket;obfs-host=${DOMAIN};path=/ss-ws" | jq -sRr @uri)
+                local LINK_WS="ss://${CRED}@${DOMAIN}:${P_MUX}/?plugin=v2ray-plugin%3B${PLUGIN_OPTS}#${user}-WS"
+                
+                echo -e "\033[0;34m ├─ \033[0;32mSUCCESS: Account Created\033[0;34m ──────────────────────────────┤\033[0m"
+                echo -e "\033[0;34m │\033[0;36m  Username   : \033[1;37m$user\033[0m"
+                echo -e "\033[0;34m │\033[0;36m  Password   : \033[1;37m$pass\033[0m"
+                echo -e "\033[0;34m │\033[0;36m  Method     : \033[1;37m$METHOD\033[0m"
+                echo -e "\033[0;34m ├─ \033[0;34mSHADOWSOCKS TCP LINK (Port $P_TCP) \033[0;34m──────────────────────┤\033[0m"
+                echo -e "\033[0;32m$LINK_TCP\033[0m"
+                echo -e "\033[0;34m ├─ \033[0;34mSHADOWSOCKS WS LINK (Port 80 via MUX) \033[0;34m─────────────────┤\033[0m"
+                echo -e "\033[0;32m$LINK_WS\033[0m"
+                echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
+                read -p "Press Enter to return..."
+                ;;
+            2|02)
+                clear
+                echo -e "\033[0;34m ┌── \033[0;33mDELETE SHADOWSOCKS ACCOUNT\033[0;34m ───────────────────────────┐\033[0m"
+                read -p " │  Username to delete: " user
+                local CONF="/usr/local/etc/xray/config.json"
+                
+                jq --arg user "$user" '
+                (.inbounds[] | select(.tag=="shadowsocks-tcp") | .settings.clients) |= map(select(.email != $user)) |
+                (.inbounds[] | select(.tag=="shadowsocks-ws") | .settings.clients) |= map(select(.email != $user))
+                ' "$CONF" > /tmp/xray.json && mv /tmp/xray.json "$CONF"
+                
+                systemctl restart xray
+                echo -e " │  \033[0;32m● SUCCESS: Account $user deleted.\033[0m"
+                echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
+                read -p "Press Enter to return..."
+                ;;
+            0|00) return ;;
+            *) echo -e "\033[1;31mInvalid option.\033[0m"; sleep 1 ;;
+        esac
+    done
+}
