@@ -13,77 +13,58 @@ draw_dashboard() {
     local XRAY_USERS=0
     [ -f "/usr/local/etc/xray/config.json" ] && XRAY_USERS=$(jq -r '.inbounds[].settings.clients[]? | select(.email != null) | .email' /usr/local/etc/xray/config.json 2>/dev/null | sort -u | wc -l)
 
-    # 2. Fixed-Width Status Indicators
-    local X_STAT=$(systemctl is-active --quiet xray && echo -e "\033[1;32mOK\033[0m  " || echo -e "\033[1;31mFAIL\033[0m")
-    local S_STAT=$(systemctl is-active --quiet ssh && echo -e "\033[1;32mOK\033[0m  " || echo -e "\033[1;31mFAIL\033[0m")
-    local O_STAT=$(systemctl is-active --quiet openvpn@server-tcp && echo -e "\033[1;32mOK\033[0m  " || echo -e "\033[1;31mFAIL\033[0m")
-    local H_STAT=$(systemctl is-active --quiet hysteria-server && echo -e "\033[1;32mOK\033[0m  " || echo -e "\033[1;31mFAIL\033[0m")
+    # 2. Modern Status Indicators
+    local X_STAT=$(systemctl is-active --quiet xray && echo -e "\033[1;32mON \033[0m" || echo -e "\033[1;31mOFF\033[0m")
+    local S_STAT=$(systemctl is-active --quiet ssh && echo -e "\033[1;32mON \033[0m" || echo -e "\033[1;31mOFF\033[0m")
+    local O_STAT=$(systemctl is-active --quiet openvpn@server-tcp && echo -e "\033[1;32mON \033[0m" || echo -e "\033[1;31mOFF\033[0m")
+    local H_STAT=$(systemctl is-active --quiet hysteria-server && echo -e "\033[1;32mON \033[0m" || echo -e "\033[1;31mOFF\033[0m")
 
-    # 3. Exact 33-Character Padding to perfectly seal a 51-width Box
-    local OS_VAL=$(printf "%-33.33s" "$OS_INFO")
-    local DOMAIN_VAL=$(printf "%-33.33s" "$HOSTNAME")
-    local TIME_VAL=$(printf "%-33.33s" "$DATE")
-    local UPTIME_VAL=$(printf "%-33.33s" "$UPTIME")
-    local USERS_VAL=$(printf "%-33.33s" "$SSH_USERS (SSH) | $XRAY_USERS (XRAY)")
-    local IP_VAL=$(printf "%-33.33s" "$IP")
-
+    # 3. Theme Colors & Layout Constants
+    local C_CYAN="\033[1;36m"
+    local C_GOLD="\033[1;33m"
+    local C_WHITE="\033[1;37m"
+    local C_RED="\033[1;31m"
+    local C_RST="\033[0m"
+    local LINE="${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RST}"
     local P="   " # Center Margin
 
-    # 4. Premium Header Box (Dark Purple Borders, EXACTLY 49 dashes)
+    # 4. Premium Full-Width Header
     echo -e ""
-    echo -e "${P}\033[0;35m╭─────────────────────────────────────────────────╮\033[0m"
-    echo -e "${P}\033[0;35m│\033[1;36m        ★ \033[1;37mTECHFEEDS MASTER VPN PRO \033[1;35mV3.5 \033[1;36m★       \033[0;35m│\033[0m"
-    echo -e "${P}\033[0;35m│\033[0;37m        Fast • Secure • Stable • Unlimited       \033[0;35m│\033[0m"
-    echo -e "${P}\033[0;35m╰─────────────────────────────────────────────────╯\033[0m"
+    echo -e "${P}${LINE}"
+    echo -e "${P}${C_GOLD}         🌟 TECHFEEDS MASTER VPN PRO V3.5 🌟${C_RST}"
+    echo -e "${P}${C_WHITE}         ⚡ Fast • Secure • Stable • Unlimited${C_RST}"
+    echo -e "${P}${LINE}"
     echo -e ""
     
-    # 5. System Information Box (Dark Cyan Borders)
-    echo -e "${P}\033[0;35m              [ \033[1;36mSYSTEM INFORMATION \033[0;35m]\033[0m"
-    echo -e "${P}\033[0;36m╭─────────────────────────────────────────────────╮\033[0m"
-    echo -e "${P}\033[0;36m│\033[0m 🐧 \033[1;37mOS         : \033[1;36m${OS_VAL}\033[0;36m│\033[0m"
-    echo -e "${P}\033[0;36m│\033[0m 🌐 \033[1;37mDomain     : \033[1;36m${DOMAIN_VAL}\033[0;36m│\033[0m"
-    echo -e "${P}\033[0;36m│\033[0m 🕒 \033[1;37mTime       : \033[1;36m${TIME_VAL}\033[0;36m│\033[0m"
-    echo -e "${P}\033[0;36m│\033[0m ⚡ \033[1;37mUptime     : \033[1;36m${UPTIME_VAL}\033[0;36m│\033[0m"
-    echo -e "${P}\033[0;36m│\033[0m 👥 \033[1;37mUsers      : \033[1;36m${USERS_VAL}\033[0;36m│\033[0m"
-    echo -e "${P}\033[0;36m│\033[0m 🆔 \033[1;37mIP Address : \033[1;36m${IP_VAL}\033[0;36m│\033[0m"
-    echo -e "${P}\033[0;36m│\033[0m ⚙️ \033[1;37m Services   : \033[0mXR:${X_STAT} \033[0mSH:${S_STAT} \033[0mOV:${O_STAT} \033[0mHY:${H_STAT}\033[0;36m│\033[0m"
-    echo -e "${P}\033[0;36m╰─────────────────────────────────────────────────╯\033[0m"
+    # 5. Telemetry Section
+    echo -e "${P}${C_CYAN}               [ ${C_WHITE}✦ SYSTEM TELEMETRY ✦ ${C_CYAN}]${C_RST}"
+    echo -e "${P}${LINE}"
+    echo -e "${P}  ${C_GOLD}OS      :${C_WHITE} ${OS_INFO}"
+    echo -e "${P}  ${C_GOLD}Domain  :${C_WHITE} ${HOSTNAME}"
+    echo -e "${P}  ${C_GOLD}Time    :${C_WHITE} ${DATE}"
+    echo -e "${P}  ${C_GOLD}Uptime  :${C_WHITE} ${UPTIME}"
+    echo -e "${P}  ${C_GOLD}Users   :${C_WHITE} ${SSH_USERS} SSH | ${XRAY_USERS} XRAY"
+    echo -e "${P}  ${C_GOLD}IP Addr :${C_WHITE} ${IP}"
+    echo -e "${P}  ${C_GOLD}Status  :${C_WHITE} XRAY[${X_STAT}${C_WHITE}] SSH[${S_STAT}${C_WHITE}] OVPN[${O_STAT}${C_WHITE}] HY2[${H_STAT}${C_WHITE}]"
+    echo -e "${P}${LINE}"
     echo -e ""
 
-    # 6. Main Menu Box (Dark Blue Borders, Hand-calibrated spacing to kill the Android emoji bug)
-    echo -e "${P}\033[1;36m                   [ \033[1;35mMAIN MENU \033[1;36m]\033[0m"
+    # 6. Command Center Menu (ANSI locked right-column positioning \033[30G)
+    echo -e "${P}${C_CYAN}                 [ ${C_WHITE}✦ COMMAND CENTER ✦ ${C_CYAN}]${C_RST}"
+    echo -e ""
     
-    echo -e "${P}\033[0;34m╭───────────────────────╮ ╭───────────────────────╮\033[0m"
-    echo -e "${P}\033[0;34m│ \033[0;32m[\033[1;37m01\033[0;32m] \033[1;37mSSH & UDP   \033[0m🛡️\033[1;30m>\033[0;34m│ │ \033[0;32m[\033[1;37m08\033[0;32m] \033[1;37mTRANSPORT   \033[0m🛠️\033[1;30m>\033[0;34m│\033[0m"
-    echo -e "${P}\033[0;34m╰───────────────────────╯ ╰───────────────────────╯\033[0m"
-    
-    echo -e "${P}\033[0;34m╭───────────────────────╮ ╭───────────────────────╮\033[0m"
-    echo -e "${P}\033[0;34m│ \033[0;32m[\033[1;37m02\033[0;32m] \033[1;37mOPENVPN       \033[0m🌐\033[1;30m>\033[0;34m│ │ \033[0;32m[\033[1;37m09\033[0;32m] \033[1;37mSSL & DOMAIN  \033[0m🔒\033[1;30m>\033[0;34m│\033[0m"
-    echo -e "${P}\033[0;34m╰───────────────────────╯ ╰───────────────────────╯\033[0m"
-    
-    echo -e "${P}\033[0;34m╭───────────────────────╮ ╭───────────────────────╮\033[0m"
-    echo -e "${P}\033[0;34m│ \033[0;32m[\033[1;37m03\033[0;32m] \033[1;37mXRAY VLESS   \033[0m✌️\033[1;30m>\033[0;34m│ │ \033[0;32m[\033[1;37m10\033[0;32m] \033[1;37mSECURITY    \033[0m🛡️\033[1;30m>\033[0;34m│\033[0m"
-    echo -e "${P}\033[0;34m╰───────────────────────╯ ╰───────────────────────╯\033[0m"
-    
-    echo -e "${P}\033[0;34m╭───────────────────────╮ ╭───────────────────────╮\033[0m"
-    echo -e "${P}\033[0;34m│ \033[0;32m[\033[1;37m04\033[0;32m] \033[1;37mXRAY VMESS    \033[0m🛸\033[1;30m>\033[0;34m│ │ \033[0;32m[\033[1;37m11\033[0;32m] \033[1;37mSERVICE PORT\033[0m⚙️\033[1;30m>\033[0;34m│\033[0m"
-    echo -e "${P}\033[0;34m╰───────────────────────╯ ╰───────────────────────╯\033[0m"
-    
-    echo -e "${P}\033[0;34m╭───────────────────────╮ ╭───────────────────────╮\033[0m"
-    echo -e "${P}\033[0;34m│ \033[0;32m[\033[1;37m05\033[0;32m] \033[1;37mXRAY TROJAN   \033[0m🐴\033[1;30m>\033[0;34m│ │ \033[0;32m[\033[1;37m12\033[0;32m] \033[1;37mMONITORING    \033[0m📊\033[1;30m>\033[0;34m│\033[0m"
-    echo -e "${P}\033[0;34m╰───────────────────────╯ ╰───────────────────────╯\033[0m"
-    
-    echo -e "${P}\033[0;34m╭───────────────────────╮ ╭───────────────────────╮\033[0m"
-    echo -e "${P}\033[0;34m│ \033[0;32m[\033[1;37m06\033[0;32m] \033[1;37mSHADOWSOCKS   \033[0m🚀\033[1;30m>\033[0;34m│ │ \033[0;32m[\033[1;37m13\033[0;32m] \033[1;37mADVANCED     \033[0m🎛️\033[1;30m>\033[0;34m│\033[0m"
-    echo -e "${P}\033[0;34m╰───────────────────────╯ ╰───────────────────────╯\033[0m"
-    
-    echo -e "${P}\033[0;34m╭───────────────────────╮ ╭───────────────────────╮\033[0m"
-    echo -e "${P}\033[0;34m│ \033[0;32m[\033[1;37m07\033[0;32m] \033[1;37mHYSTERIA V2 \033[0m⚡\033[1;30m>\033[0;34m│ │ \033[0;32m[\033[1;37m14\033[0;32m] \033[1;37mCHANGE PORTS \033[0m🔌\033[1;30m>\033[0;34m│\033[0m"
-    echo -e "${P}\033[0;34m╰───────────────────────╯ ╰───────────────────────╯\033[0m"
-    
-    # 7. Dark Red Exit Button
-    echo -e "${P}\033[0;31m╭─────────────────────────────────────────────────╮\033[0m"
-    echo -e "${P}\033[0;31m│ \033[0;31m[\033[1;37m00\033[0;31m] \033[1;37mEXIT DASHBOARD                        \033[0m🚪\033[1;30m>\033[0;31m│\033[0m"
-    echo -e "${P}\033[0;31m╰─────────────────────────────────────────────────╯\033[0m"
+    echo -e "${P} ${C_CYAN}[${C_GOLD}01${C_CYAN}]${C_RST} 🚀 ${C_WHITE}SSH & UDP\033[30G${C_CYAN}[${C_GOLD}08${C_CYAN}]${C_RST} 🛰️ ${C_WHITE}TRANSPORT"
+    echo -e "${P} ${C_CYAN}[${C_GOLD}02${C_CYAN}]${C_RST} 🌍 ${C_WHITE}OPENVPN\033[30G${C_CYAN}[${C_GOLD}09${C_CYAN}]${C_RST} 🔐 ${C_WHITE}SSL/DOMAIN"
+    echo -e "${P} ${C_CYAN}[${C_GOLD}03${C_CYAN}]${C_RST} ⚡ ${C_WHITE}XRAY VLESS\033[30G${C_CYAN}[${C_GOLD}10${C_CYAN}]${C_RST} 🛑 ${C_WHITE}SECURITY"
+    echo -e "${P} ${C_CYAN}[${C_GOLD}04${C_CYAN}]${C_RST} 🛸 ${C_WHITE}XRAY VMESS\033[30G${C_CYAN}[${C_GOLD}11${C_CYAN}]${C_RST} ⚙️ ${C_WHITE}SERVICES"
+    echo -e "${P} ${C_CYAN}[${C_GOLD}05${C_CYAN}]${C_RST} 🐎 ${C_WHITE}XRAY TROJAN\033[30G${C_CYAN}[${C_GOLD}12${C_CYAN}]${C_RST} 📈 ${C_WHITE}MONITORING"
+    echo -e "${P} ${C_CYAN}[${C_GOLD}06${C_CYAN}]${C_RST} 🌑 ${C_WHITE}SHADOWSOCKS\033[30G${C_CYAN}[${C_GOLD}13${C_CYAN}]${C_RST} 🛠️ ${C_WHITE}ADVANCED"
+    echo -e "${P} ${C_CYAN}[${C_GOLD}07${C_CYAN}]${C_RST} 🌪️ ${C_WHITE}HYSTERIA V2\033[30G${C_CYAN}[${C_GOLD}14${C_CYAN}]${C_RST} 🔌 ${C_WHITE}PORTS"
+
+    # 7. Clean Red Exit Line
+    echo -e ""
+    echo -e "${P}${LINE}"
+    echo -e "${P} ${C_RED}[00] ❌ EXIT DASHBOARD${C_RST}"
+    echo -e "${P}${LINE}"
     echo -e ""
 }
