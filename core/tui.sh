@@ -1,4 +1,4 @@
-Draw_dashboard() {
+draw_dashboard() { 
     clear
     
     local HOSTNAME=$(cat /etc/techfeeds/domain 2>/dev/null || hostname)
