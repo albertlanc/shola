@@ -1,70 +1,93 @@
-draw_dashboard() {
+Draw_dashboard() {
     clear
     
-    # 1. Fetch System Information
     local HOSTNAME=$(cat /etc/techfeeds/domain 2>/dev/null || hostname)
     local IP=$(curl -s4 ifconfig.me 2>/dev/null || echo "Unknown")
-    local UPTIME=$(uptime -p 2>/dev/null | sed 's/up //' | sed 's/ days/d/' | sed 's/ day/d/' | sed 's/ hours/h/' | sed 's/ hour/h/' | sed 's/ minutes/m/' | sed 's/ minute/m/' || echo "Unknown")
-    local DATE=$(date +"%Y-%m-%d %H:%M:%S")
-    local OS_INFO=$(cat /etc/os-release 2>/dev/null | grep "^PRETTY_NAME" | cut -d= -f2 | tr -d '"')
-    [ -z "$OS_INFO" ] && OS_INFO="Linux"
+    local SYS_LOAD=$(uptime | awk -F'load average:' '{ print $2 }' | cut -d, -f1 | sed 's/ //g')
+    local DISK_USAGE=$(df -h / | awk 'NR==2 {print $5 " of " $2}')
+    local UPTIME=$(uptime -p | sed 's/up //')
+    local DATE=$(date +"%a %b %d %r %Z %Y")
     
+    local RAM_TOTAL=$(free -m | awk '/Mem:/ {print $2}')
+    local RAM_USED=$(free -m | awk '/Mem:/ {print $3}')
+    local RAM_PERCENT=0
+    [ "$RAM_TOTAL" -gt 0 ] && RAM_PERCENT=$((RAM_USED * 100 / RAM_TOTAL))
+    local FILLED_LEN=$((RAM_PERCENT * 12 / 100))
+    local EMPTY_LEN=$((12 - FILLED_LEN))
+    local RAM_BAR="["$(printf "%${FILLED_LEN}s" | tr ' ' '#')$(printf "%${EMPTY_LEN}s" | tr ' ' '-')"]"
+
     local SSH_USERS=$(awk -F':' '{ if ($3 >= 1000 && $1 != "nobody") print $1 }' /etc/passwd | wc -l)
     local XRAY_USERS=0
     [ -f "/usr/local/etc/xray/config.json" ] && XRAY_USERS=$(jq -r '.inbounds[].settings.clients[]? | select(.email != null) | .email' /usr/local/etc/xray/config.json 2>/dev/null | sort -u | wc -l)
 
-    # 2. Modern Status Indicators
-    local X_STAT=$(systemctl is-active --quiet xray && echo -e "\033[1;32mON \033[0m" || echo -e "\033[1;31mOFF\033[0m")
-    local S_STAT=$(systemctl is-active --quiet ssh && echo -e "\033[1;32mON \033[0m" || echo -e "\033[1;31mOFF\033[0m")
-    local O_STAT=$(systemctl is-active --quiet openvpn@server-tcp && echo -e "\033[1;32mON \033[0m" || echo -e "\033[1;31mOFF\033[0m")
-    local H_STAT=$(systemctl is-active --quiet hysteria-server && echo -e "\033[1;32mON \033[0m" || echo -e "\033[1;31mOFF\033[0m")
+    local SSH_RAW=$(systemctl is-active --quiet ssh && echo "[OK]" || echo "[FAIL]")
+    local XRAY_RAW=$(systemctl is-active --quiet xray && echo "[OK]" || echo "[FAIL]")
+    local OVPN_RAW=$(systemctl is-active --quiet openvpn@server-tcp && echo "[OK]" || echo "[FAIL]")
+    local HY2_RAW=$(systemctl is-active --quiet hysteria-server && echo "[OK]" || echo "[FAIL]")
 
-    # 3. Theme Colors & Layout Constants
-    local C_CYAN="\033[1;36m"
-    local C_GOLD="\033[1;33m"
-    local C_WHITE="\033[1;37m"
-    local C_RED="\033[1;31m"
-    local C_RST="\033[0m"
-    local LINE="${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RST}"
-    local P="   " # Center Margin
+    local SSH_STAT=$(systemctl is-active --quiet ssh && echo -e "\033[0;32m[OK]\033[0m" || echo -e "\033[0;31m[FAIL]\033[0m")
+    local XRAY_STAT=$(systemctl is-active --quiet xray && echo -e "\033[0;32m[OK]\033[0m" || echo -e "\033[0;31m[FAIL]\033[0m")
+    local OVPN_STAT=$(systemctl is-active --quiet openvpn@server-tcp && echo -e "\033[0;32m[OK]\033[0m" || echo -e "\033[0;31m[FAIL]\033[0m")
+    local HY2_STAT=$(systemctl is-active --quiet hysteria-server && echo -e "\033[0;32m[OK]\033[0m" || echo -e "\033[0;31m[FAIL]\033[0m")
 
-    # 4. Premium Full-Width Header
+    local L_HOST="  Host : $IP"
+    local L_UP="  Up   : $UPTIME"
+    local L_RAM="  RAM  : $RAM_BAR ${RAM_PERCENT}% (${RAM_USED}MB/${RAM_TOTAL}MB)"
+    local L_SVC="  SVC  : Xray:${XRAY_RAW} SSH:${SSH_RAW} OVPN:${OVPN_RAW} HY2:${HY2_RAW}"
+    local L_ACT="  Active -> Sys:${SSH_USERS} Xray:${XRAY_USERS}"
+
+    local PAD_HOST=$(( 57 - ${#L_HOST} ))
+    local PAD_UP=$(( 57 - ${#L_UP} ))
+    local PAD_RAM=$(( 57 - ${#L_RAM} ))
+    local PAD_SVC=$(( 57 - ${#L_SVC} ))
+    local PAD_ACT=$(( 57 - ${#L_ACT} ))
+
+    [ $PAD_HOST -lt 0 ] && PAD_HOST=0
+    [ $PAD_UP -lt 0 ] && PAD_UP=0
+    [ $PAD_RAM -lt 0 ] && PAD_RAM=0
+    [ $PAD_SVC -lt 0 ] && PAD_SVC=0
+    [ $PAD_ACT -lt 0 ] && PAD_ACT=0
+
     echo -e ""
-    echo -e "${P}${LINE}"
-    echo -e "${P}${C_GOLD}         🌟 TECHFEEDS MASTER VPN PRO V3.5 🌟${C_RST}"
-    echo -e "${P}${C_WHITE}         ⚡ Fast • Secure • Stable • Unlimited${C_RST}"
-    echo -e "${P}${LINE}"
+    echo -e " \033[0;32m* Documentation:  https://github.com/albertlanc/shola\033[0m"
+    echo -e " \033[0;32m* Management:     TECHFEEDS VPN PRO\033[0m"
+    echo -e " \033[0;32m* Support:        https://t.me/techfeeds\033[0m"
     echo -e ""
     
-    # 5. Telemetry Section
-    echo -e "${P}${C_CYAN}               [ ${C_WHITE}✦ SYSTEM TELEMETRY ✦ ${C_CYAN}]${C_RST}"
-    echo -e "${P}${LINE}"
-    echo -e "${P}  ${C_GOLD}OS      :${C_WHITE} ${OS_INFO}"
-    echo -e "${P}  ${C_GOLD}Domain  :${C_WHITE} ${HOSTNAME}"
-    echo -e "${P}  ${C_GOLD}Time    :${C_WHITE} ${DATE}"
-    echo -e "${P}  ${C_GOLD}Uptime  :${C_WHITE} ${UPTIME}"
-    echo -e "${P}  ${C_GOLD}Users   :${C_WHITE} ${SSH_USERS} SSH | ${XRAY_USERS} XRAY"
-    echo -e "${P}  ${C_GOLD}IP Addr :${C_WHITE} ${IP}"
-    echo -e "${P}  ${C_GOLD}Status  :${C_WHITE} XRAY[${X_STAT}${C_WHITE}] SSH[${S_STAT}${C_WHITE}] OVPN[${O_STAT}${C_WHITE}] HY2[${H_STAT}${C_WHITE}]"
-    echo -e "${P}${LINE}"
+    echo -e "\033[0;34m ┌── \033[0;33mTECHFEEDS VPN PRO V3.0 (ELITE)\033[0;34m ───────────────────────┐\033[0m"
+    echo -e "\033[0;34m │                                                         │\033[0m"
+    echo -e "\033[0;34m │\033[0;36m  Host : \033[0;32m$IP\033[0m$(printf "%${PAD_HOST}s" "")\033[0;34m│\033[0m"
+    echo -e "\033[0;34m │\033[0;36m  Up   : \033[0;32m$UPTIME\033[0m$(printf "%${PAD_UP}s" "")\033[0;34m│\033[0m"
+    echo -e "\033[0;34m │\033[0;36m  RAM  : \033[0;32m$RAM_BAR \033[0;31m${RAM_PERCENT}%\033[0;36m (${RAM_USED}MB/${RAM_TOTAL}MB)\033[0m$(printf "%${PAD_RAM}s" "")\033[0;34m│\033[0m"
+    echo -e "\033[0;34m │\033[0;36m  SVC  : \033[0;37mXray:${XRAY_STAT}\033[0;37m SSH:${SSH_STAT}\033[0;37m OVPN:${OVPN_STAT}\033[0;37m HY2:${HY2_STAT}\033[0m$(printf "%${PAD_SVC}s" "")\033[0;34m│\033[0m"
+    echo -e "\033[0;34m │\033[0;36m  \033[1;37m📊 Active -> \033[0;32mSys:${SSH_USERS} \033[0;32mXray:${XRAY_USERS}\033[0m$(printf "%${PAD_ACT}s" "")\033[0;34m│\033[0m"
+    echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
     echo -e ""
-
-    # 6. Command Center Menu (ANSI locked right-column positioning \033[30G)
-    echo -e "${P}${C_CYAN}                 [ ${C_WHITE}✦ COMMAND CENTER ✦ ${C_CYAN}]${C_RST}"
+    echo -e "\033[0;34m ┌─ \033[0;34mPROTOCOL MANAGEMENT \033[0;34m───────────────────────────────────┐\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[01]\033[0;36m SSH, SSHWS & UDP Custom Manager                   \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[02]\033[0;36m OpenVPN Manager                                   \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[03]\033[0;36m Xray VLESS Manager                                \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[04]\033[0;36m Xray VMESS Manager                                \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[05]\033[0;36m Xray Trojan Manager                               \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[06]\033[0;36m Shadowsocks Manager                               \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[07]\033[0;36m Hysteria V2 Manager                               \033[0;34m│\033[0m"
+    echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
     echo -e ""
-    
-    echo -e "${P} ${C_CYAN}[${C_GOLD}01${C_CYAN}]${C_RST} 🚀 ${C_WHITE}SSH & UDP\033[30G${C_CYAN}[${C_GOLD}08${C_CYAN}]${C_RST} 🛰️ ${C_WHITE}TRANSPORT"
-    echo -e "${P} ${C_CYAN}[${C_GOLD}02${C_CYAN}]${C_RST} 🌍 ${C_WHITE}OPENVPN\033[30G${C_CYAN}[${C_GOLD}09${C_CYAN}]${C_RST} 🔐 ${C_WHITE}SSL/DOMAIN"
-    echo -e "${P} ${C_CYAN}[${C_GOLD}03${C_CYAN}]${C_RST} ⚡ ${C_WHITE}XRAY VLESS\033[30G${C_CYAN}[${C_GOLD}10${C_CYAN}]${C_RST} 🛑 ${C_WHITE}SECURITY"
-    echo -e "${P} ${C_CYAN}[${C_GOLD}04${C_CYAN}]${C_RST} 🛸 ${C_WHITE}XRAY VMESS\033[30G${C_CYAN}[${C_GOLD}11${C_CYAN}]${C_RST} ⚙️ ${C_WHITE}SERVICES"
-    echo -e "${P} ${C_CYAN}[${C_GOLD}05${C_CYAN}]${C_RST} 🐎 ${C_WHITE}XRAY TROJAN\033[30G${C_CYAN}[${C_GOLD}12${C_CYAN}]${C_RST} 📈 ${C_WHITE}MONITORING"
-    echo -e "${P} ${C_CYAN}[${C_GOLD}06${C_CYAN}]${C_RST} 🌑 ${C_WHITE}SHADOWSOCKS\033[30G${C_CYAN}[${C_GOLD}13${C_CYAN}]${C_RST} 🛠️ ${C_WHITE}ADVANCED"
-    echo -e "${P} ${C_CYAN}[${C_GOLD}07${C_CYAN}]${C_RST} 🌪️ ${C_WHITE}HYSTERIA V2\033[30G${C_CYAN}[${C_GOLD}14${C_CYAN}]${C_RST} 🔌 ${C_WHITE}PORTS"
-
-    # 7. Clean Red Exit Line
+    echo -e "\033[0;34m ┌─ \033[0;34mSERVER & AUTOMATION \033[0;34m───────────────────────────────────┐\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[08]\033[0;36m Xray & Transport Manager                          \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[09]\033[0;36m SSL/TLS & Domain Manager                          \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[10]\033[0;36m Server & Security Manager                         \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[11]\033[0;36m Service & Port Manager                            \033[0;34m│\033[0m"
+    echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
     echo -e ""
-    echo -e "${P}${LINE}"
-    echo -e "${P} ${C_RED}[00] ❌ EXIT DASHBOARD${C_RST}"
-    echo -e "${P}${LINE}"
+    echo -e "\033[0;34m ┌─ \033[0;34mDIAGNOSTICS & TOOLS \033[0;34m───────────────────────────────────┐\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[12]\033[0;36m Monitoring & Tools                                \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[13]\033[0;36m Advanced Settings                                 \033[0;34m│\033[0m"
+    echo -e "\033[0;34m │  \033[0;32m[14]\033[0;36m Change Server Ports                               \033[0;34m│\033[0m"
+    echo -e "\033[0;34m └─────────────────────────────────────────────────────────┘\033[0m"
+    echo -e ""
+    echo -e "\033[0;31m ┌─────────────────────────────────────────────────────────┐\033[0m"
+    echo -e "\033[0;31m │  \033[0;32m[00]\033[0;31m Exit Dashboard                                    \033[0;31m│\033[0m"
+    echo -e "\033[0;31m └─────────────────────────────────────────────────────────┘\033[0m"
     echo -e ""
 }
