@@ -11,7 +11,6 @@ echo -e "│  Welcome to the automated server installer."
 echo -e "│  Please provide your domain and nameserver below."
 echo -e "\033[0;36m└──────────────────────────────────────────────────────────\033[0m"
 
-echo -e "\033[1;33mCRITICAL: Ensure your Cloudflare domain is set to DNS ONLY (Grey Cloud) before continuing!\033[0m"
 echo -ne "\033[1;32mEnter your Pointed Domain (e.g., vpn.yourdomain.com): \033[0m"
 read DOMAIN
 echo -ne "\033[1;32mEnter your SlowDNS Nameserver (e.g., ns.yourdomain.com): \033[0m"
@@ -22,8 +21,7 @@ echo -e "\033[0;36m┌─ TECHFEEDS VPN PRO - INSTALLING ELITE ARCHITECTURE ─�
 
 echo -e "│  Installing system dependencies and cloning repository..."
 apt-get update -y > /dev/null 2>&1
-# Added dropbear to the dependency array
-apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 cmake make gcc g++ at iptables unzip zip ca-certificates socat openvpn easy-rsa dropbear > /dev/null 2>&1
+apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 cmake make gcc g++ at iptables unzip zip ca-certificates socat openvpn easy-rsa > /dev/null 2>&1
 
 rm -rf /opt/techfeeds-vpn-pro
 git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
@@ -46,16 +44,6 @@ systemctl disable nginx apache2 2>/dev/null
 killall socat apache2 nginx 2>/dev/null
 fuser -k 80/tcp 2>/dev/null
 fuser -k 443/tcp 2>/dev/null
-
-echo -e "│  Configuring Dropbear strictly on Port 109..."
-cat << 'EOF' > /etc/default/dropbear
-NO_START=0
-DROPBEAR_PORT=109
-DROPBEAR_EXTRA_ARGS="-p 109"
-EOF
-systemctl daemon-reload
-systemctl enable dropbear > /dev/null 2>&1
-systemctl restart dropbear > /dev/null 2>&1
 
 echo -e "│  Generating Let's Encrypt SSL for $DOMAIN..."
 curl -s https://get.acme.sh | sh > /dev/null 2>&1
@@ -244,11 +232,10 @@ def proxy(client):
     try:
         initial_data = client.recv(4096)
         if not initial_data: return
-        # Target Port strictly locked to 109 to match Dropbear
-        target_port = 109
+        target_port = 22
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.connect(('127.0.0.1', target_port))
-        if target_port == 109 and (b"HTTP/1.1" in initial_data or b"Upgrade: websocket" in initial_data):
+        if target_port == 22 and (b"HTTP/1.1" in initial_data or b"Upgrade: websocket" in initial_data):
             client.send(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n")
         else: server.send(initial_data)
         while True:
@@ -306,8 +293,6 @@ systemctl enable --now stunnel4 > /dev/null 2>&1
 
 echo -e "│  Configuring Advanced Firewall Rules..."
 ufw allow 22/tcp > /dev/null 2>&1
-# Added specific firewall unblock for Dropbear
-ufw allow 109/tcp > /dev/null 2>&1
 ufw allow 53/udp > /dev/null 2>&1
 ufw allow 80/tcp > /dev/null 2>&1
 ufw allow 443/tcp > /dev/null 2>&1
@@ -328,8 +313,7 @@ if [ -f /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh ]; then
     ln -sf /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh /usr/local/bin/techfeeds-vpn-pro
 fi
 
-# Appended dropbear to the final restart line to ensure it loads everything seamlessly
-systemctl restart xray stunnel4 hysteria-server dropbear > /dev/null 2>&1
+systemctl restart xray stunnel4 hysteria-server > /dev/null 2>&1
 systemctl enable xray > /dev/null 2>&1
 
 echo -e "│  \033[0;32mInstallation completed successfully!\033[0m"
