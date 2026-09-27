@@ -100,14 +100,16 @@ cat << 'EOF' > /usr/local/etc/xray/config.json
 EOF
 
 echo -e "│  Installing OpenVPN (TCP/UDP)..."
-make-cadir /etc/openvpn/easy-rsa > /dev/null 2>&1
-cd /etc/openvpn/easy-rsa
-./easyrsa init-pki > /dev/null 2>&1
-EASYRSA_BATCH=1 ./easyrsa build-ca nopass > /dev/null 2>&1
-EASYRSA_BATCH=1 ./easyrsa build-server-full server nopass > /dev/null 2>&1
-EASYRSA_BATCH=1 ./easyrsa gen-dh > /dev/null 2>&1
-openvpn --genkey secret /etc/openvpn/tls-crypt.key > /dev/null 2>&1
-cp pki/ca.crt pki/private/server.key pki/issued/server.crt pki/dh.pem /etc/openvpn/
+if [ ! -f /etc/openvpn/server.crt ]; then
+    make-cadir /etc/openvpn/easy-rsa > /dev/null 2>&1
+    cd /etc/openvpn/easy-rsa
+    EASYRSA_BATCH=1 ./easyrsa init-pki > /dev/null 2>&1
+    EASYRSA_BATCH=1 ./easyrsa build-ca nopass > /dev/null 2>&1
+    EASYRSA_BATCH=1 ./easyrsa build-server-full server nopass > /dev/null 2>&1
+    EASYRSA_BATCH=1 ./easyrsa gen-dh > /dev/null 2>&1
+    openvpn --genkey secret /etc/openvpn/tls-crypt.key > /dev/null 2>&1
+    cp pki/ca.crt pki/private/server.key pki/issued/server.crt pki/dh.pem /etc/openvpn/
+fi
 
 PLUGIN_PATH=$(find /usr/lib -name "openvpn-plugin-auth-pam.so" | head -n 1)
 cat <<EOF > /etc/openvpn/server-tcp.conf
@@ -257,7 +259,6 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-# DNSTT enabled explicitly on Port 5300
 systemctl enable --now dnstt-server > /dev/null 2>&1
 
 echo -e "│  Setting up Smart WebSocket Proxy (Port 80 routing to SSH & Xray)..."
