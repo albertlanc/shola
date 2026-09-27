@@ -5,7 +5,8 @@ hysteria_menu() {
         local DOMAIN=$(cat /etc/techfeeds/domain 2>/dev/null || curl -s4 ifconfig.me)
         local PORT=$(awk '/listen:/ {print $2}' /etc/hysteria/config.yaml 2>/dev/null | grep -o "[0-9]*")
         
-        [ -z "$PORT" ] && PORT="443"
+        # Enforces Port 53 fallback for your custom configuration
+        [ -z "$PORT" ] && PORT="53"
         
         echo -e "\033[0;34m ┌── \033[0;33mHYSTERIA V2 MANAGER\033[0;34m ──────────────────────────────────┐\033[0m"
         echo -e "\033[0;34m │                                                         │\033[0m"
