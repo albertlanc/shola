@@ -68,7 +68,6 @@ curl -s https://get.acme.sh | sh > /dev/null 2>&1
     --fullchain-file /etc/ssl/techfeeds/fullchain.cer \
     --key-file /etc/ssl/techfeeds/private.key > /dev/null 2>&1
 
-# Universal read permissions for Xray and Stunnel daemons
 chmod 755 /etc/ssl/techfeeds 2>/dev/null
 chmod 644 /etc/ssl/techfeeds/* 2>/dev/null
 
@@ -149,6 +148,13 @@ IFACE=$(ip route | awk '/^default/ {print $5}' | head -n 1)
 iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o $IFACE -j MASQUERADE
 iptables -t nat -A POSTROUTING -s 10.9.0.0/24 -o $IFACE -j MASQUERADE
 
+echo -e "│  Purging old Hysteria V2 installations to ensure clean state..."
+systemctl stop hysteria-server > /dev/null 2>&1
+systemctl disable hysteria-server > /dev/null 2>&1
+rm -rf /etc/hysteria
+rm -f /usr/local/bin/hysteria
+rm -f /etc/systemd/system/hysteria-server.service
+
 echo -e "│  Installing Hysteria V2 (UDP 53)..."
 wget -qO /usr/local/bin/hysteria https://github.com/apernet/hysteria/releases/latest/download/hysteria-linux-amd64 > /dev/null 2>&1
 chmod +x /usr/local/bin/hysteria
@@ -160,14 +166,29 @@ tls:
   cert: /etc/ssl/techfeeds/fullchain.cer
   key: /etc/ssl/techfeeds/private.key
 auth:
-  type: password
-  password: techfeeds_hy2_master
+  type: command
+  command: /etc/hysteria/auth.sh
 masquerade:
   type: proxy
   proxy:
     url: https://bing.com
     rewriteHost: true
 EOF
+
+cat << 'EOF' > /etc/hysteria/auth.sh
+#!/bin/bash
+password="$HYSTERIA_AUTH"
+if grep -Fxq "$password" /etc/hysteria/users.txt; then
+    exit 0
+else
+    exit 1
+fi
+EOF
+chmod +x /etc/hysteria/auth.sh
+
+touch /etc/hysteria/users.txt
+echo "techfeeds_hy2_master" > /etc/hysteria/users.txt
+echo "12345" >> /etc/hysteria/users.txt
 
 cat <<EOF > /etc/systemd/system/hysteria-server.service
 [Unit]
@@ -206,7 +227,7 @@ WantedBy=multi-user.target
 EOF
 systemctl enable --now udp-custom > /dev/null 2>&1
 
-echo -e "│  Fixing Port 53 & Compiling DNSTT Server..."
+echo -e "│  Compiling DNSTT Server (Port 5300)..."
 systemctl stop systemd-resolved 2>/dev/null
 sed -i 's/#DNSStubListener=yes/DNSStubListener=no/' /etc/systemd/resolved.conf 2>/dev/null
 sed -i 's/DNSStubListener=yes/DNSStubListener=no/' /etc/systemd/resolved.conf 2>/dev/null
@@ -236,8 +257,8 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-# DNSTT is disabled by default to prevent fatal collisions with Hysteria V2 on Port 53
-systemctl disable dnstt-server > /dev/null 2>&1
+# DNSTT enabled explicitly on Port 5300
+systemctl enable --now dnstt-server > /dev/null 2>&1
 
 echo -e "│  Setting up Smart WebSocket Proxy (Port 80 routing to SSH & Xray)..."
 cat << 'EOF' > /usr/local/bin/ws-proxy.py
@@ -314,6 +335,7 @@ ufw allow 443/tcp > /dev/null 2>&1
 ufw allow 443/udp > /dev/null 2>&1
 ufw allow 1194/tcp > /dev/null 2>&1
 ufw allow 1194/udp > /dev/null 2>&1
+ufw allow 5300/udp > /dev/null 2>&1
 ufw allow 8388/tcp > /dev/null 2>&1
 ufw allow 36712/udp > /dev/null 2>&1
 ufw allow 8080/tcp > /dev/null 2>&1
@@ -328,7 +350,7 @@ if [ -f /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh ]; then
     ln -sf /opt/techfeeds-vpn-pro/techfeeds-vpn-pro.sh /usr/local/bin/techfeeds-vpn-pro
 fi
 
-systemctl restart xray stunnel4 hysteria-server > /dev/null 2>&1
+systemctl restart xray stunnel4 hysteria-server dnstt-server > /dev/null 2>&1
 systemctl enable xray > /dev/null 2>&1
 
 echo -e "│  \033[0;32mInstallation completed successfully!\033[0m"
