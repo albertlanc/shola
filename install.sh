@@ -19,9 +19,24 @@ read NS
 clear
 echo -e "\033[0;36m┌─ TECHFEEDS VPN PRO - INSTALLING ELITE ARCHITECTURE ──────\033[0m"
 
+echo -e "│  Applying permanent DNS fix to prevent resolution errors..."
+chattr -i /etc/resolv.conf 2>/dev/null
+rm -f /etc/resolv.conf
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+chattr +i /etc/resolv.conf
+
 echo -e "│  Installing system dependencies and cloning repository..."
 apt-get update -y > /dev/null 2>&1
-apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git golang stunnel4 python3 cmake make gcc g++ at iptables unzip zip ca-certificates socat openvpn easy-rsa > /dev/null 2>&1
+apt-get install -y curl wget jq uuid-runtime ufw fail2ban tar gawk git stunnel4 python3 cmake make gcc g++ at iptables unzip zip ca-certificates socat openvpn easy-rsa > /dev/null 2>&1
+
+echo -e "│  Installing Go 1.21+ compiler..."
+apt-get remove -y golang-go golang > /dev/null 2>&1
+rm -rf /usr/local/go
+wget -q https://go.dev/dl/go1.21.8.linux-amd64.tar.gz
+tar -C /usr/local -xzf go1.21.8.linux-amd64.tar.gz
+rm go1.21.8.linux-amd64.tar.gz
+ln -sf /usr/local/go/bin/go /usr/bin/go
 
 rm -rf /opt/techfeeds-vpn-pro
 git clone https://github.com/albertlanc/shola.git /opt/techfeeds-vpn-pro > /dev/null 2>&1
@@ -134,13 +149,13 @@ IFACE=$(ip route | awk '/^default/ {print $5}' | head -n 1)
 iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o $IFACE -j MASQUERADE
 iptables -t nat -A POSTROUTING -s 10.9.0.0/24 -o $IFACE -j MASQUERADE
 
-echo -e "│  Installing Hysteria V2 (UDP 443)..."
+echo -e "│  Installing Hysteria V2 (UDP 53)..."
 wget -qO /usr/local/bin/hysteria https://github.com/apernet/hysteria/releases/latest/download/hysteria-linux-amd64 > /dev/null 2>&1
 chmod +x /usr/local/bin/hysteria
 mkdir -p /etc/hysteria
 
 cat <<EOF > /etc/hysteria/config.yaml
-listen: :443
+listen: :53
 tls:
   cert: /etc/ssl/techfeeds/fullchain.cer
   key: /etc/ssl/techfeeds/private.key
@@ -191,11 +206,10 @@ WantedBy=multi-user.target
 EOF
 systemctl enable --now udp-custom > /dev/null 2>&1
 
-echo -e "│  Fixing Port 53 & Installing DNSTT Server..."
+echo -e "│  Fixing Port 53 & Compiling DNSTT Server..."
 systemctl stop systemd-resolved 2>/dev/null
 sed -i 's/#DNSStubListener=yes/DNSStubListener=no/' /etc/systemd/resolved.conf 2>/dev/null
 sed -i 's/DNSStubListener=yes/DNSStubListener=no/' /etc/systemd/resolved.conf 2>/dev/null
-ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf 2>/dev/null
 systemctl enable --now systemd-resolved 2>/dev/null
 
 rm -rf /opt/dnstt
@@ -203,6 +217,7 @@ git clone https://www.bamsoftware.com/git/dnstt.git /opt/dnstt > /dev/null 2>&1 
 cd /opt/dnstt/dnstt-server && go build
 mv dnstt-server /usr/local/bin/
 
+mkdir -p /etc/techfeeds
 cd /etc/techfeeds
 /usr/local/bin/dnstt-server -gen-key -privkey-file /etc/techfeeds/privkey -pubkey-file /etc/techfeeds/pubkey
 cat /etc/techfeeds/pubkey > /etc/techfeeds/pubkey.txt
@@ -213,7 +228,7 @@ Description=DNSTT Server
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/dnstt-server -udp :53 -privkey-file /etc/techfeeds/privkey $NS 127.0.0.1:22
+ExecStart=/usr/local/bin/dnstt-server -udp :5300 -privkey-file /etc/techfeeds/privkey $NS 127.0.0.1:22
 Restart=always
 RestartSec=3
 
@@ -221,8 +236,8 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable dnstt-server > /dev/null 2>&1
-systemctl start dnstt-server
+# DNSTT is disabled by default to prevent fatal collisions with Hysteria V2 on Port 53
+systemctl disable dnstt-server > /dev/null 2>&1
 
 echo -e "│  Setting up Smart WebSocket Proxy (Port 80 routing to SSH & Xray)..."
 cat << 'EOF' > /usr/local/bin/ws-proxy.py
