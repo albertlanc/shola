@@ -5,7 +5,7 @@ hysteria_menu() {
         local DOMAIN=$(cat /etc/techfeeds/domain 2>/dev/null || curl -s4 ifconfig.me)
         local PORT=$(awk '/listen:/ {print $2}' /etc/hysteria/config.yaml 2>/dev/null | grep -o "[0-9]*")
         
-        # Enforces Port 53 fallback for your custom configuration
+        # Enforce Port 53 fallback
         [ -z "$PORT" ] && PORT="53"
         
         echo -e "\033[0;34m ┌── \033[0;33mHYSTERIA V2 MANAGER\033[0;34m ──────────────────────────────────┐\033[0m"
@@ -36,13 +36,16 @@ hysteria_menu() {
                 # Calculate expiration
                 exp_date=$(date -d "+$duration days" +"%Y-%m-%d")
 
-                # Add password to Hysteria config and restart
-                sed -i "/auth:/a \ \ \ \ - $password" /etc/hysteria/config.yaml 2>/dev/null
-                systemctl restart hysteria-server hy2 > /dev/null 2>&1
-
                 # Log tracking details to automated quota database
                 mkdir -p /etc/techfeeds
                 echo "$username:$password:$exp_date:$devices:$quota" >> /etc/techfeeds/user_quotas.db
+
+                # Safely add the password to the auth list and restart
+                mkdir -p /etc/hysteria
+                if ! grep -Fxq "$password" /etc/hysteria/users.txt 2>/dev/null; then
+                    echo "$password" >> /etc/hysteria/users.txt
+                fi
+                systemctl restart hysteria-server > /dev/null 2>&1
 
                 # Generate Payload (Uses password for auth token, username for the remark tag)
                 hy2_link="hy2://$password@$DOMAIN:$PORT/?sni=$DOMAIN&insecure=1#$username"
